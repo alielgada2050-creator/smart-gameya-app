@@ -1,0 +1,2 @@
+{ "name": "refers-engineering", "private": true, "workspaces": ["packages/*", "apps/*"],
+  "scripts": { "test": "npm test -w @smart-gameya/financial-core" } }
