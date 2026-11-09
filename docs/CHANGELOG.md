@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.3.0 — 2026-11-09
+- ADR-004: AI on free providers (Groq → Cloudflare Workers AI → deterministic Arabic template) via packages/ai-core.
+- Savings rules engine in financial-core (savings.ts); numeric hallucination guard; NOT_ADVISED never sent to a model.
+- POST /api/v1/ai/savings-advice; ai_model_usage telemetry without prompt content.
+- ADR-005: refresh-token rotation with reuse detection; /auth/refresh, /auth/logout.
+- migration 003; tests: ai-core 8, API E2E 17.
+
 ## 0.2.0 — 2026-11-09
 - ADR-001: operating Model A approved (organization tool; members pay each other directly).
 - apps/api (NestJS 11): OTP auth + JWT, rate limits, correlation IDs, standard errors, audit trail.

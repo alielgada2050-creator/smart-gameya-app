@@ -12,7 +12,9 @@
 | الطريقة | المسار | الجسم | ملاحظات |
 |---|---|---|---|
 | POST | `/auth/otp/request` | `{ phone: "+9665XXXXXXXX" }` | 202؛ 5 رموز/15 دقيقة لكل رقم، 5/دقيقة لكل IP؛ `devCode` يظهر فقط في التطوير |
-| POST | `/auth/otp/verify` | `{ phone, code, fullName? }` | ينشئ المستخدم عند أول دخول؛ 5 محاولات للرمز |
+| POST | `/auth/otp/verify` | `{ phone, code, fullName? }` | ينشئ المستخدم عند أول دخول؛ 5 محاولات؛ يعيد `accessToken` (15 د) و`refreshToken` (30 يوماً) |
+| POST | `/auth/refresh` | `{ refreshToken }` | يعيد زوجاً جديداً ويُبطل القديم؛ إعادة استخدام رمز قديم → `REFRESH_REUSED` وإلغاء كل جلسات العائلة |
+| POST | `/auth/logout` | `{ refreshToken }` | يلغي الجلسة؛ الرد نفسه سواء وُجد الرمز أم لا |
 
 ## الجمعيات
 | الطريقة | المسار | من | الوصف |
@@ -45,6 +47,13 @@
 | POST | `/installments/:id/dispute` | مستلم الدورة | → `DISPUTED` (قبل التأكيد) |
 
 حالات القسط المحسوبة على الخادم بتقويم الرياض: `SCHEDULED` · `DUE` · `IN_GRACE` · `LATE` · `AWAITING_CONFIRMATION` · `DISPUTED` · `PAID`.
+
+## الذكاء الاصطناعي
+| الطريقة | المسار | الجسم | الرد |
+|---|---|---|---|
+| POST | `/ai/savings-advice` | `{ monthlyIncome, monthlyExpenses, goalAmount, targetMonths? }` (نصوص عشرية) | `facts` (الأرقام الرسمية من المحرك، تشمل التزاماتك الحالية)، `explanation { text, source: llm\|template, provider, model }`، `dataSources`، `disclaimer` |
+
+المدخلات لا تُحفظ. حد 10 طلبات/دقيقة. انظر `docs/AI_PROVIDERS.md`.
 
 ## الصحة
 `GET /health` (عام).

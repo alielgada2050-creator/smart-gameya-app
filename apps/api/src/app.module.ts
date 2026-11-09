@@ -13,6 +13,7 @@ import { GamiyasController } from './gamiyas/gamiyas.controller.ts';
 import { GamiyasService } from './gamiyas/gamiyas.service.ts';
 import { InstallmentsController, InstallmentsService } from './installments/installments.ts';
 import { HealthController } from './health.ts';
+import { AiController, AiService } from './ai/ai.ts';
 
 @Module({})
 export class AppModule implements NestModule {
@@ -23,10 +24,10 @@ export class AppModule implements NestModule {
         JwtModule.register({ secret: config.jwtSecret, signOptions: { algorithm: 'HS256' } }),
         ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
       ],
-      controllers: [HealthController, AuthController, GamiyasController, InstallmentsController],
+      controllers: [HealthController, AuthController, GamiyasController, InstallmentsController, AiController],
       providers: [
         { provide: CONFIG, useValue: config },
-        Db, Audit, AuthService, GamiyasService, InstallmentsService,
+        Db, Audit, AuthService, GamiyasService, InstallmentsService, AiService,
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },

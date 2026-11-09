@@ -1,3 +1,5 @@
+import { chainFromEnv, type ProviderChain } from '../../../../packages/ai-core/src/providers.ts';
+
 export interface AppConfig {
   databaseUrl: string;
   jwtSecret: string;
@@ -5,6 +7,7 @@ export interface AppConfig {
   lotterySeedKey: Buffer; // 32 bytes, AES-256-GCM key for sealing lottery seeds until reveal
   exposeOtpInResponse: boolean; // development only — never in production
   isProduction: boolean;
+  ai: { chain: ProviderChain; skipped: string[] }; // free-tier provider chain; empty chain → deterministic template
 }
 
 function required(name: string): string {
@@ -28,6 +31,7 @@ export function loadConfig(): AppConfig {
     lotterySeedKey: key,
     exposeOtpInResponse: expose,
     isProduction,
+    ai: chainFromEnv(process.env),
   };
 }
 

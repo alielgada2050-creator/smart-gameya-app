@@ -5,7 +5,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import request from 'supertest';
 import pg from 'pg';
 import type { INestApplication } from '@nestjs/common';
+import { createServer, type Server } from 'node:http';
 import { createApp } from '../src/main.ts';
+import { OpenAICompatibleProvider, ProviderChain } from '../../../packages/ai-core/src/providers.ts';
 
 /**
  * End-to-end scenarios against a real PostgreSQL (run via scripts/test-api.sh, which recreates the DB).
@@ -16,13 +18,32 @@ let http: any;
 let db: pg.Client;
 let ipSeq = 10;
 
-const config = {
+/** Local stand-in for a free OpenAI-compatible provider (Groq/Cloudflare): behaviour switchable per test. */
+let llmMode: 'good' | 'hallucinate' | 'ratelimit' = 'good';
+let lastPrompt = '';
+const llm: Server = createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    lastPrompt = raw;
+    if (llmMode === 'ratelimit') return res.writeHead(429).end('{}');
+    const facts = JSON.parse(JSON.parse(raw).messages[1].content.split('\n').slice(1).join('\n'));
+    const r = facts.recommended;
+    const content = llmMode === 'good'
+      ? `الأنسب لك جمعية من ${r.members} أعضاء بمساهمة ${r.monthlyContribution} ريال وقبض ${r.payout} ريال. المنصة لا تستلم الأموال.`
+      : 'ننصحك بجمعية من 9 أعضاء وستربح 4% إضافية.';
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 200, completion_tokens: 40 } }));
+  });
+});
+
+const config: any = {
   databaseUrl: process.env.DATABASE_URL!,
   jwtSecret: randomBytes(32).toString('hex'),
   otpPepper: 'test-pepper',
   lotterySeedKey: randomBytes(32),
   exposeOtpInResponse: true,
   isProduction: false,
+  ai: { chain: new ProviderChain([]), skipped: [] },
 };
 
 interface Person { name: string; phone: string; ip: string; token: string; id: string }
@@ -42,13 +63,16 @@ async function login(name: string, phone: string): Promise<Person> {
 }
 
 before(async () => {
+  await new Promise<void>((ok) => llm.listen(0, '127.0.0.1', ok));
+  const base = `http://127.0.0.1:${(llm.address() as any).port}/v1`;
+  config.ai.chain = new ProviderChain([new OpenAICompatibleProvider({ name: 'groq', baseUrl: base, apiKey: 'test-only', model: 'llama-3.3-70b-versatile', timeoutMs: 2000 })]);
   app = await createApp(config);
   await app.init();
   http = request(app.getHttpServer());
   db = new pg.Client({ connectionString: config.databaseUrl });
   await db.connect();
 });
-after(async () => { await db.end(); await app.close(); });
+after(async () => { await db.end(); await app.close(); llm.close(); });
 
 describe('auth', () => {
   test('rejects missing/invalid tokens with the standard error envelope', async () => {
@@ -263,5 +287,89 @@ describe('full circle lifecycle (model A)', () => {
     const otpRows = (await db.query(`SELECT entity_id, details FROM audit_logs WHERE action='OTP_REQUESTED'`)).rows;
     assert.ok(otpRows.length > 0);
     assert.ok(otpRows.every((r) => r.details === null && /^\+9665\d\*{4}$/.test(r.entity_id)), 'OTP audit rows hold no code and a masked phone');
+  });
+});
+
+describe('sessions: refresh-token rotation', () => {
+  test('rotate, detect reuse, revoke family, logout', async () => {
+    const ip = '10.0.3.1', phone = '+966500000077';
+    const req = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', ip).send({ phone });
+    const login = await http.post('/api/v1/auth/otp/verify').set('X-Forwarded-For', ip).send({ phone, code: req.body.devCode });
+    assert.equal(login.status, 200);
+    assert.match(login.body.refreshToken, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(login.body._rowId, undefined, 'internal ids are not leaked');
+    const stored = await db.query('SELECT token_hash FROM refresh_tokens');
+    assert.ok(stored.rows.every((r) => r.token_hash !== login.body.refreshToken), 'only hashes are stored');
+
+    const r1 = await http.post('/api/v1/auth/refresh').send({ refreshToken: login.body.refreshToken });
+    assert.equal(r1.status, 200);
+    assert.notEqual(r1.body.refreshToken, login.body.refreshToken);
+    assert.equal((await http.get('/api/v1/gamiyas').set('Authorization', `Bearer ${r1.body.accessToken}`)).status, 200);
+
+    const replay = await http.post('/api/v1/auth/refresh').send({ refreshToken: login.body.refreshToken });
+    assert.equal(replay.status, 401);
+    assert.equal(replay.body.error.code, 'REFRESH_REUSED');
+    const afterTheft = await http.post('/api/v1/auth/refresh').send({ refreshToken: r1.body.refreshToken });
+    assert.equal(afterTheft.status, 401, 'the legitimate-looking newer token is revoked too');
+
+    const req2 = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', '10.0.3.2').send({ phone });
+    const login2 = await http.post('/api/v1/auth/otp/verify').set('X-Forwarded-For', '10.0.3.2').send({ phone, code: req2.body.devCode });
+    assert.equal((await http.post('/api/v1/auth/logout').send({ refreshToken: login2.body.refreshToken })).status, 200);
+    assert.equal((await http.post('/api/v1/auth/refresh').send({ refreshToken: login2.body.refreshToken })).status, 401);
+    assert.equal((await http.post('/api/v1/auth/logout').send({ refreshToken: 'x'.repeat(43) })).body.loggedOut, true);
+    assert.equal((await http.post('/api/v1/auth/refresh').send({ refreshToken: 'short' })).status, 400);
+  });
+});
+
+describe('AI savings advisor (free provider chain, guarded)', () => {
+  let U: Person;
+  const input = { monthlyIncome: '15000', monthlyExpenses: '9000', goalAmount: '12000', targetMonths: 12 };
+
+  test('setup: a user who already pays 1,000 SAR/month in a recruiting circle', async () => {
+    U = await login('مستخدم المستشار', '+966500000088');
+    const ag = await api(U, 'get', '/api/v1/agreements/current');
+    const c = await api(U, 'post', '/api/v1/gamiyas', { name: 'جمعية قائمة', frequency: 'MONTHLY', contribution: '1000', memberCount: 6, startDate: '2027-02-01', agreementVersionId: ag.body.id });
+    assert.equal(c.status, 201);
+  });
+
+  test('numbers come from the engine; the LLM only explains them; prompt has no personal data', async () => {
+    llmMode = 'good';
+    const r = await api(U, 'post', '/api/v1/ai/savings-advice', input);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.facts.existingMonthlyCommitments, '1000.00');
+    assert.equal(r.body.facts.comfortableMonthlyCapacity, '1800.00');
+    assert.equal(r.body.facts.remainingCapacity, '800.00');
+    assert.equal(r.body.facts.status, 'NOT_ADVISED', '12,000 over 12 months needs 1,000/month > 800 remaining');
+    assert.equal(r.body.explanation.source, 'template', 'NOT_ADVISED is never delegated to a model');
+    assert.equal(lastPrompt, '', 'the provider was not called at all');
+
+    const ok = await api(U, 'post', '/api/v1/ai/savings-advice', { ...input, goalAmount: '9000' });
+    assert.equal(ok.body.facts.status, 'RECOMMENDED');
+    assert.deepEqual(ok.body.facts.recommended, { members: 12, months: 12, monthlyContribution: '750.00', payout: '9000.00' });
+    assert.equal(ok.body.explanation.source, 'llm');
+    assert.equal(ok.body.explanation.provider, 'groq');
+    assert.match(ok.body.explanation.text, /750\.00/);
+    assert.ok(!/\+966|مستخدم المستشار|جمعية قائمة|15000/.test(lastPrompt), 'no phone, name, circle name or raw income sent to the provider');
+    assert.ok(ok.body.disclaimer && ok.body.dataSources.length === 2);
+  });
+
+  test('hallucinated figures are rejected and logged; rate limit falls back to the template', async () => {
+    llmMode = 'hallucinate';
+    const h = await api(U, 'post', '/api/v1/ai/savings-advice', { ...input, goalAmount: '9000' });
+    assert.equal(h.body.explanation.source, 'template');
+    assert.match(h.body.explanation.text, /12 أعضاء/);
+    llmMode = 'ratelimit';
+    const rl = await api(U, 'post', '/api/v1/ai/savings-advice', { ...input, goalAmount: '9000' });
+    assert.equal(rl.body.explanation.source, 'template');
+    const usage = (await db.query(`SELECT outcome, guard_passed FROM ai_model_usage WHERE user_id=$1 ORDER BY id`, [U.id])).rows;
+    assert.deepEqual(usage.map((u) => `${u.outcome}:${u.guard_passed}`), ['OK:true', 'OK:false', 'RATE_LIMITED:null']);
+    const cols = (await db.query(`SELECT column_name FROM information_schema.columns WHERE table_name='ai_model_usage'`)).rows.map((r) => r.column_name);
+    assert.ok(!cols.some((c) => /prompt|content|income/.test(c)), 'usage log stores no prompt content or inputs');
+  });
+
+  test('validation and auth', async () => {
+    assert.equal((await api(U, 'post', '/api/v1/ai/savings-advice', { ...input, goalAmount: '-5' })).status, 400);
+    assert.equal((await api(U, 'post', '/api/v1/ai/savings-advice', { ...input, goalAmount: '0' })).body.error.code, 'INVALID_INPUT');
+    assert.equal((await api(null, 'post', '/api/v1/ai/savings-advice', input)).status, 401);
   });
 });

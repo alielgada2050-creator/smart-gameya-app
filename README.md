@@ -16,7 +16,8 @@
 | النواة المالية: مال بلا float، جدولة، رسوم، قرعة قابلة للتحقق، دفتر مزدوج | `packages/financial-core/` |
 | الاختبارات | `docs/TESTING_REPORT.md` |
 | خارطة الطريق | `docs/DEVELOPMENT_ROADMAP.md` |
-| واجهة NestJS: OTP، جمعيات، دعوات، اتفاقيات، قرعة، تسوية بين الأعضاء | `apps/api/`, `docs/API_DOCUMENTATION.md` |
+| واجهة NestJS: OTP وتجديد الجلسات، جمعيات، دعوات، اتفاقيات، قرعة، تسوية بين الأعضاء | `apps/api/`, `docs/API_DOCUMENTATION.md` |
+| مستشار الادخار الذكي على مزودين مجانيين (Groq ← Cloudflare ← قالب ثابت) | `packages/ai-core/`, `docs/AI_PROVIDERS.md` |
 
 ## تشغيل الاختبارات
 ```bash
@@ -27,8 +28,11 @@ cd packages/financial-core && node --test test/core.test.ts
 createdb sg && psql -d sg -v ON_ERROR_STOP=1 -f infrastructure/database/migrations/001_core.sql
 psql -d sg -f infrastructure/database/tests/001_core_checks.sql
 
+# طبقة الذكاء الاصطناعي (خادم مزود وهمي محلي، بلا مفاتيح)
+cd packages/ai-core && node --test test/ai.test.ts
+
 # الواجهة البرمجية (يحتاج PostgreSQL على PGHOST/PGPORT)
-scripts/test-api.sh                       # يعيد إنشاء قاعدة الاختبار ويشغل 12 اختبار E2E
+scripts/test-api.sh                       # يعيد إنشاء قاعدة الاختبار ويشغل 17 اختبار E2E
 cd apps/api && npm run build && npm start # مع متغيرات .env.example
 ```
 
