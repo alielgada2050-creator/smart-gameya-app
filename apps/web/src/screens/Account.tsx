@@ -3,6 +3,8 @@ import { api } from '../api.ts';
 import { EmptyState, ErrorNote, Loading, useLoad } from '../components.tsx';
 import { useT } from '../i18n.ts';
 import { readLogos, saveLogos, type OrgLogo } from '../shell/prefs.ts';
+import { useInstall } from '../shell/Shell.tsx';
+import { Icon } from '../shell/icons.tsx';
 
 export function Account() {
   const { t } = useT();
@@ -20,7 +22,10 @@ export function Account() {
         ) : <Loading />}
         <PayoutMethods />
       </div>
-      <BusinessIdentity />
+      <div className="stack">
+        <AppOnDevices />
+        <BusinessIdentity />
+      </div>
     </div>
   );
 }
@@ -120,6 +125,23 @@ function BusinessIdentity() {
       <label>{t.logoName}<input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} /></label>
       <label>{t.logoFile}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => addLogo(e.target.files?.[0])} /></label>
       {error && <p className="notice error">{error}</p>}
+    </section>
+  );
+}
+
+/** Install on computer (Chrome/Edge: install icon or button) and phone (Android prompt, iPhone via Share). */
+function AppOnDevices() {
+  const { t } = useT();
+  const { canInstall, installed, install } = useInstall();
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return (
+    <section className="panel stack-sm" data-testid="install-panel">
+      <h2>{t.installTitle}</h2>
+      <p className="muted small">{t.installExplain}</p>
+      {installed ? <p className="notice ok">{t.installed}</p>
+        : canInstall ? <button className="btn btn-primary" onClick={install}><Icon name="download" />{t.install}</button>
+        : ios ? <p className="notice gold">{t.iosInstall}</p>
+        : <p className="muted small">{t.installHint}</p>}
     </section>
   );
 }

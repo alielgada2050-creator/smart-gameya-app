@@ -57,12 +57,8 @@ def sign_in(page, phone, name):
 
 
 def nav(page, label):
-    """Desktop: second-row tab. Phone: open the menu sheet first."""
-    if page.viewport_size["width"] <= 640:
-        page.get_by_role("button", name="القائمة").click()
-        page.get_by_role("navigation", name="القائمة").get_by_role("link", name=label).click()
-    else:
-        page.get_by_role("navigation", name="جمعيتي").get_by_role("link", name=label).click()
+    """Sidebar at >=1024px, bottom nav below; only the visible one is in the accessibility tree."""
+    page.get_by_role("navigation", name="جمعيتي").get_by_role("link", name=label).click()
 
 
 def add_iban(page):
@@ -150,7 +146,7 @@ with sync_playwright() as p:
         add_iban(pg)
     A.get_by_label("اسم الجهة").fill("مؤسسة الاختبار")
     A.get_by_label("ملف الشعار (PNG شفاف)").set_input_files({"name": "logo.png", "mimeType": "image/png", "buffer": PNG})
-    expect(A.locator(".logo-strip .logo-plate")).to_have_count(1)
+    expect(A.locator(".logo-strip:visible .logo-plate")).to_have_count(1)
     shot(A, "03-account")
 
     # 3. Medium circle: 3 × 5,000 = 15,000 SAR, started in the past
@@ -282,12 +278,30 @@ with sync_playwright() as p:
     B.get_by_role("button", name=re.compile("^الإشعارات")).click()
     shot(B, "14-notifications-phone")
     B.keyboard.press("Escape")
-    B.get_by_role("button", name="القائمة").click()
-    expect(B.get_by_role("navigation", name="القائمة")).to_be_visible()
-    shot(B, "15-menu-sheet-phone")
-    B.get_by_role("navigation", name="القائمة").get_by_role("link", name="المستشار").click()
+    bottom = B.locator("nav.bottom-nav")
+    expect(bottom).to_be_visible()
+    expect(A.locator("nav.bottom-nav")).to_be_hidden()          # desktop uses the sidebar
+    expect(A.locator("aside.sidebar")).to_be_visible()
+    h = bottom.get_by_role("link", name="المستشار").bounding_box()["height"]
+    if h < 44: problems.append(f"bottom-nav touch target {h}px < 44")
+    bottom.get_by_role("link", name="المستشار").click()
     expect(B.get_by_role("heading", name="كم تستطيع أن تدخر بجمعية؟")).to_be_visible()
+    expect(bottom.get_by_role("link", name="المستشار")).to_have_attribute("aria-current", "page")
+    shot(B, "15-bottom-nav-phone")
     no_hscroll(B, "advisor-phone")
+    nav(B, "حسابي")
+    expect(B.get_by_test_id("install-panel")).to_be_visible()
+
+    # 7b. One layout per breakpoint (375 / 768 / 1024 / 1440 + phone landscape), no horizontal scroll
+    for w, hgt, name in ((375, 812, "16-home-375"), (768, 1024, "17-home-768-tablet"), (1024, 768, "18-home-1024"), (1440, 900, "19-home-1440"), (844, 390, "20-home-phone-landscape")):
+        B.set_viewport_size({"width": w, "height": hgt})
+        B.goto(BASE + "/#/")
+        expect(B.get_by_role("heading", name="أهلاً خالد")).to_be_visible()
+        side = B.locator("aside.sidebar").is_visible()
+        if side != (w >= 1024): problems.append(f"sidebar visible={side} at {w}px")
+        no_hscroll(B, name)
+        B.screenshot(path=f"{SHOTS}/{name}.png")
+    B.set_viewport_size(phone)
 
     # 8. Session survives reload; sign-out clears it
     A.reload()
@@ -300,4 +314,4 @@ with sync_playwright() as p:
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("UI journey passed: payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, mobile sheet, no horizontal scroll at 390px")
+print("UI journey passed: payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")

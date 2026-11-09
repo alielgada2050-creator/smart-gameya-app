@@ -21,8 +21,16 @@ export async function createApp(config = loadConfig()) {
       res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
       next();
     });
-    http.use(express.static(web, { index: 'index.html', maxAge: '1h' }));
-    http.get(/^\/(?!api\/).*/, (_req: any, res: any) => res.sendFile(join(web, 'index.html')));
+    // The shell entry points must revalidate so an update reaches installed apps; hashed assets are immutable.
+    http.use(express.static(web, {
+      index: 'index.html',
+      setHeaders: (res: any, path: string) => {
+        if (/(index\.html|sw\.js|manifest\.webmanifest)$/.test(path)) res.setHeader('Cache-Control', 'no-cache');
+        else if (path.includes('/assets/')) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        else res.setHeader('Cache-Control', 'public, max-age=3600');
+      },
+    }));
+    http.get(/^\/(?!api\/).*/, (_req: any, res: any) => { res.setHeader('Cache-Control', 'no-cache'); res.sendFile(join(web, 'index.html')); });
   }
   return app;
 }

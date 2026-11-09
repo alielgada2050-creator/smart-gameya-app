@@ -63,9 +63,14 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   return { data, error, reload: () => setTick((x) => x + 1) };
 }
 
-export function Loading() {
+/** Skeleton placeholder: reserves space (no layout shift) and announces a busy state. */
+export function Loading({ lines = 4 }: { lines?: number }) {
   const { t } = useT();
-  return <p className="muted" aria-live="polite">{t.loading}…</p>;
+  return (
+    <div className="panel skeleton" role="status" aria-busy="true" aria-label={t.loading}>
+      {Array.from({ length: lines }, (_, i) => <span key={i} />)}
+    </div>
+  );
 }
 
 

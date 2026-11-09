@@ -1,11 +1,27 @@
 {
+  "id": "/",
   "name": "جمعيتي — Smart Gam'eya",
   "short_name": "جمعيتي",
+  "description": "نظّم جمعيتك مع من تثق بهم: قرعة قابلة للتحقق، إيصالات واعتماد ثلاثي، ومحادثة موثقة.",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "/",
+  "start_url": "/#/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#F3F7FB",
-  "theme_color": "#2F6690",
-  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0F172A",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "جمعياتي", "short_name": "جمعياتي", "url": "/#/circles", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "جمعية جديدة", "short_name": "جديدة", "url": "/#/new", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "المستشار", "short_name": "المستشار", "url": "/#/advisor", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
 }

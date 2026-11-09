@@ -7,7 +7,7 @@
 | 01 | CTO | كل المستودع (مراجعة) | اعتماد البنية، ADR-001..011 | ✅ Gate A |
 | 02 | PM & BA | docs/SRS.md, DEVELOPMENT_ROADMAP.md | SRS، خارطة الطريق | ✅ مسودة |
 | 03 | Reverse Engineering | docs/REVERSE_ENGINEERING_REPORT.md | تحليل وظيفي مصنّف | ✅ |
-| 04 | UX/UI | apps/web/src/styles.css, src/shell | هوية وثيق: 4 أغلفة، الخطوط، الرأس بطبقتين، الشعارات، Hairline | ✅ |
+| 04 | UX/UI | apps/web/src/styles.css, src/shell | تصميم متكيّف (UI/UX Pro Max): شريط جانبي/سفلي، تباين WCAG، PWA، 4 أغلفة، Hairline | ✅ |
 | 05 | Database Architect | infrastructure/database | migration 001 + اختبارات | ✅ |
 | 06 | Backend | apps/api | Auth، الجمعيات، القرعة، الأقساط | ✅ جزئي (Phase 2–3) |
 | 07 | Frontend | apps/web | كل رحلات العضو والمنظم ومراجع المنصة | ✅ |

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, currentUser, hasSession, logout, type SessionUser } from './api.ts';
 import { I18n, dictionaries } from './i18n.ts';
-import { Header, type NavItem } from './shell/Header.tsx';
+import { Shell, type NavItem } from './shell/Shell.tsx';
 import { useLang, useSkin } from './shell/prefs.ts';
 import { Login } from './screens/Login.tsx';
 import { Home } from './screens/Home.tsx';
@@ -62,10 +62,11 @@ export function App() {
 
   return (
     <I18n.Provider value={{ t, lang }}>
-      <Header nav={nav} current={tab} signedIn={!!user} userName={user?.fullName} skin={skin} setSkin={setSkin}
+      <Shell nav={nav} current={tab} signedIn={!!user} userName={user?.fullName} skin={skin} setSkin={setSkin}
         toggleLang={() => setLang(lang === 'ar' ? 'en' : 'ar')}
-        onSignOut={async () => { await logout(); setUser(null); setRole('NONE'); location.hash = '/'; }} />
-      <main className="page">{screen}</main>
+        onSignOut={async () => { await logout(); setUser(null); setRole('NONE'); location.hash = '/'; }}>
+        {screen}
+      </Shell>
     </I18n.Provider>
   );
 }

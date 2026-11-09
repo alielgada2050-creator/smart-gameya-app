@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.6.0 — 2026-11-10 — تصميم عصري متكيّف للمتصفح والكمبيوتر والجوال (مهارة «تصميم UX UI»)
+- غلاف متكيّف: شريط جانبي ثابت من 1024px فأعلى، وشريط تنقل سفلي (4–5 عناصر، أهداف لمس ≥ 44px) على الجوال والتابلت، مع مراعاة حواف الشاشة (safe areas) ونسخة مضغوطة للجوال الأفقي.
+- نظام ألوان جديد: كحلي #0F172A مع ذهبي ثقة #F59E0B (نص كحلي فوقه)، وثلاثة أغلفة (فاتح/داكن/ساطع) كلها ناجحة في فحص التباين WCAG (‏`scripts/contrast.py`، 39 زوجاً).
+- خطوط IBM Plex Sans Arabic / IBM Plex Sans، هياكل تحميل (skeleton) بدل «جاري التحميل»، حالات ضغط 80–150ms، واحترام «تقليل الحركة».
+- تطبيق قابل للتثبيت (PWA): أيقونات PNG ‏192/512/maskable/Apple، اختصارات (جمعياتي، جمعية جديدة، المستشار)، Service Worker يخزّن واجهة التطبيق فقط ولا يلمس ‎/api/ أو ‎/files/، شريط «غير متصل»، زر تثبيت في الرأس ولوحة «التطبيق على أجهزتك» في حسابي (مع إرشاد الآيفون).
+- الخادم: `Cache-Control: no-cache` لـ index.html وsw.js والـ manifest، وتخزين دائم للملفات المُجزّأة.
+- اختبار المتصفح: لقطات عند 375/768/1024/1440 والجوال الأفقي 844×390، والتحقق من ظهور الشريط الجانبي/السفلي حسب العرض وعدم وجود تمرير أفقي.
+
 ## 0.5.0 — 2026-11-09
 - ADR-007 tiers by payout value (small/medium/large ≤ 100,000 SAR); large circles: promissory notes to the organizer + platform-admin approval before the draw; admin review page.
 - ADR-008 Sign in with Google (server-verified ID token) with mandatory mobile registration; Egyptian and UAE mobiles accepted.
