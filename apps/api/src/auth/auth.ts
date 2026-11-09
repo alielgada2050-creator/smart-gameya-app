@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, Inject, Injectable, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Injectable, Post } from '@nestjs/common';
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { JwtService } from '@nestjs/jwt';
 import { Throttle } from '@nestjs/throttler';
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -6,7 +7,7 @@ import { z } from 'zod';
 import { CONFIG, type AppConfig } from '../common/config.ts';
 import { Db, type Queryable } from '../common/db.ts';
 import { Audit } from '../common/audit.ts';
-import { AppError, CorrelationId, parseBody } from '../common/http.ts';
+import { AppError, CorrelationId, CurrentUser, parseBody, type AuthUser } from '../common/http.ts';
 import { Public } from '../common/auth.guard.ts';
 
 const OTP_TTL_MIN = 5;
@@ -14,11 +15,12 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_MAX_PER_WINDOW = 5; // per phone per 15 minutes
 const REFRESH_TTL_DAYS = 30;
 
-// Saudi mobile numbers in E.164: +9665XXXXXXXX
-const phone = z.string().regex(/^\+9665\d{8}$/, 'must be a Saudi mobile number in E.164 format (+9665XXXXXXXX)');
+// Mobile numbers in E.164 for the supported countries: Saudi (+9665…), Egypt (+201[0125]…), UAE (+9715…)
+const phone = z.string().regex(/^(\+9665\d{8}|\+201[0125]\d{8}|\+9715\d{8})$/, 'must be a Saudi, Egyptian or UAE mobile number in E.164 format');
 const RequestSchema = z.object({ phone });
 const RefreshSchema = z.object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
-const VerifySchema = z.object({ phone, code: z.string().regex(/^\d{6}$/), fullName: z.string().trim().min(2).max(100).optional() });
+const VerifySchema = z.object({ phone, code: z.string().regex(/^\d{6}$/), fullName: z.string().trim().min(2).max(100).optional(), linkToken: z.string().max(2000).optional() });
+const GoogleSchema = z.object({ idToken: z.string().min(20).max(4096) });
 
 @Injectable()
 export class AuthService {
@@ -28,6 +30,50 @@ export class AuthService {
     private readonly audit: Audit,
     @Inject(CONFIG) private readonly config: AppConfig,
   ) {}
+
+  #jwks: JWTVerifyGetKey | null = null;
+
+  /**
+   * Sign in with Google (ID token from Google Identity Services). A Google account alone is not enough:
+   * the first time, the person must also verify a mobile number, which becomes the account (registration by mobile).
+   */
+  async googleSignIn(idToken: string, correlationId: string) {
+    const g = this.config.google;
+    if (!g) throw new AppError(404, 'GOOGLE_DISABLED', 'Google sign-in is not configured');
+    this.#jwks ??= createRemoteJWKSet(new URL(g.jwksUrl));
+    let claims: any;
+    try {
+      claims = (await jwtVerify(idToken, this.#jwks, { issuer: g.issuers, audience: g.clientId, algorithms: ['RS256'] })).payload;
+    } catch {
+      throw new AppError(401, 'GOOGLE_TOKEN_INVALID', 'Google sign-in could not be verified');
+    }
+    if (claims.email_verified !== true || typeof claims.sub !== 'string') throw new AppError(401, 'GOOGLE_EMAIL_UNVERIFIED', 'the Google account email is not verified');
+    const user = (await this.db.query(`SELECT id, phone_e164, full_name, kyc_status FROM users WHERE google_sub=$1`, [claims.sub])).rows[0];
+    if (user) {
+      return this.db.tx(async (c) => {
+        await this.audit.log(c, { actorId: user.id, action: 'USER_LOGIN_GOOGLE', entity: 'user', entityId: user.id, correlationId });
+        const { _rowId, ...tokens } = await this.issueTokens(c, user.id, user.phone_e164, randomUUID());
+        return { ...tokens, user: { id: user.id, fullName: user.full_name, kycStatus: user.kyc_status } };
+      });
+    }
+    const linkToken = await this.jwt.signAsync({ typ: 'google-link', gsub: claims.sub, email: claims.email ?? null, name: claims.name ?? null }, { expiresIn: '10m', algorithm: 'HS256' });
+    return { needsPhone: true, linkToken, suggestedName: claims.name ?? null };
+  }
+
+  private async readLink(token: string) {
+    try {
+      const p = await this.jwt.verifyAsync<{ typ: string; gsub: string; email: string | null }>(token, { algorithms: ['HS256'] });
+      if (p.typ !== 'google-link') throw new Error('wrong type');
+      return p;
+    } catch {
+      throw new AppError(401, 'LINK_EXPIRED', 'the Google sign-in step expired; sign in with Google again');
+    }
+  }
+
+  async me(userId: string) {
+    const u = (await this.db.query(`SELECT id, full_name, phone_e164, email, platform_role, google_sub IS NOT NULL AS google_linked, kyc_status FROM users WHERE id=$1`, [userId])).rows[0];
+    return { id: u.id, fullName: u.full_name, phone: u.phone_e164, email: u.email, platformRole: u.platform_role, googleLinked: u.google_linked, kycStatus: u.kyc_status };
+  }
 
   private hash(code: string) {
     return createHash('sha256').update(`${code}:${this.config.otpPepper}`).digest('hex');
@@ -47,6 +93,7 @@ export class AuthService {
   }
 
   async verifyOtp(input: z.infer<typeof VerifySchema>, correlationId: string) {
+    const link = input.linkToken ? await this.readLink(input.linkToken) : null;
     return this.db.tx(async (c) => {
       const { rows } = await c.query(
         `SELECT id, code_hash, attempts FROM otp_challenges
@@ -68,6 +115,15 @@ export class AuthService {
          RETURNING id, phone_e164, full_name, kyc_status, (xmax = 0) AS created`,
         [input.phone, input.fullName ?? 'عضو جديد', input.fullName ?? null])).rows[0];
       await this.audit.log(c, { actorId: user.id, action: user.created ? 'USER_REGISTERED' : 'USER_LOGIN', entity: 'user', entityId: user.id, correlationId });
+      if (link) {
+        const cur = (await c.query(`SELECT google_sub FROM users WHERE id=$1`, [user.id])).rows[0].google_sub;
+        if (cur && cur !== link.gsub) throw new AppError(409, 'GOOGLE_ALREADY_LINKED', 'this mobile number is already linked to a different Google account');
+        const taken = (await c.query(`SELECT id FROM users WHERE google_sub=$1 AND id<>$2`, [link.gsub, user.id])).rows[0];
+        if (taken) throw new AppError(409, 'GOOGLE_ALREADY_LINKED', 'this Google account is linked to another mobile number');
+        await c.query(`UPDATE users SET google_sub=$2, email=COALESCE(email, $3) WHERE id=$1`, [user.id, link.gsub, link.email]);
+        await this.audit.log(c, { actorId: user.id, action: 'GOOGLE_LINKED', entity: 'user', entityId: user.id, correlationId });
+      }
+      if (this.config.platformAdminPhones?.includes(user.phone_e164)) await c.query(`UPDATE users SET platform_role='PLATFORM_ADMIN' WHERE id=$1 AND platform_role='NONE'`, [user.id]);
       const { _rowId, ...tokens } = await this.issueTokens(c, user.id, user.phone_e164, randomUUID());
       return { ...tokens, user: { id: user.id, fullName: user.full_name, kycStatus: user.kyc_status } };
     });
@@ -133,6 +189,15 @@ export class AuthController {
   verify(@Body() body: unknown, @CorrelationId() cid: string) {
     return this.auth.verifyOtp(parseBody(VerifySchema, body), cid);
   }
+
+  @Public() @Post('google') @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  google(@Body() body: unknown, @CorrelationId() cid: string) {
+    return this.auth.googleSignIn(parseBody(GoogleSchema, body).idToken, cid);
+  }
+
+  @Get('me')
+  me(@CurrentUser() u: AuthUser) { return this.auth.me(u.id); }
 
   @Public() @Post('refresh') @HttpCode(200)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

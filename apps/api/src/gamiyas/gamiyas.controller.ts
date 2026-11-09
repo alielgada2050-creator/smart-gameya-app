@@ -6,7 +6,7 @@ import { Db } from '../common/db.ts';
 
 const CreateSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  currency: z.enum(['SAR']).default('SAR'),
+  country: z.enum(['SA', 'EG', 'AE']).default('SA'),
   frequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']),
   contribution: z.string().regex(/^\d{1,9}(\.\d{1,2})?$/, 'decimal string, e.g. "1000" or "1000.50"'),
   memberCount: z.number().int().min(2).max(60),
@@ -14,7 +14,7 @@ const CreateSchema = z.object({
   graceDays: z.number().int().min(0).max(14).default(3),
   agreementVersionId: uuid,
 });
-const PreviewSchema = CreateSchema.pick({ currency: true, frequency: true, contribution: true, memberCount: true, startDate: true });
+const PreviewSchema = CreateSchema.pick({ country: true, frequency: true, contribution: true, memberCount: true, startDate: true });
 const InviteSchema = z.object({ maxUses: z.number().int().min(1).max(60).default(1), expiresInHours: z.number().int().min(1).max(168).default(72) });
 const AcceptSchema = z.object({ agreementVersionId: uuid });
 const ExecuteSchema = z.object({ publicEntropy: z.string().trim().min(8).max(200) });
@@ -28,7 +28,7 @@ export class GamiyasController {
 
   @Post('gamiyas')
   create(@CurrentUser() u: AuthUser, @Body() body: unknown, @ClientIp() ip: string | null, @CorrelationId() cid: string) {
-    return this.svc.create(u.id, parseBody(CreateSchema, body), ip, cid);
+    return this.svc.create(u.id, { ...parseBody(CreateSchema, body), currency: '' }, ip, cid);
   }
 
   @Post('gamiyas/preview') @HttpCode(200)

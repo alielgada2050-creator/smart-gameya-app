@@ -16,6 +16,7 @@
     "vite": "^6.4.6"
   },
   "dependencies": {
+    "@lucasmarkes/hairline": "^0.5.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   }

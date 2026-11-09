@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.5.0 — 2026-11-09
+- ADR-007 tiers by payout value (small/medium/large ≤ 100,000 SAR); large circles: promissory notes to the organizer + platform-admin approval before the draw; admin review page.
+- ADR-008 Sign in with Google (server-verified ID token) with mandatory mobile registration; Egyptian and UAE mobiles accepted.
+- ADR-009 payout methods per country (IBAN, STC Pay, Barq, urpay, InstaPay, Vodafone Cash), encrypted at rest, revealed only to the payer; receipts upload; three-party approval; organizer rejection; disputes with organizer or platform resolution; platform dispute queue.
+- ADR-010 circle chat with an automatic transaction record, assistant commands, guarded free-form answers, idempotent reminders, in-app notifications.
+- ADR-011 redesign with the Wathiq shell identity (4 skins, Alexandria + Readex Pro, two-tier header, mobile sheet, business logos) and Hairline figures.
+- migration 004; tests: financial-core 14, ai-core 8, API 30, browser journey (3 members + reviewer).
+
 ## 0.4.0 — 2026-11-09
 - ADR-006: apps/web — installable web app (React + Vite), Arabic RTL first + English, light/dark; rotation ring as the signature view.
 - Screens: sign-in with OTP, home (what to pay / confirm), my circles, create with server preview, join by invite link, circle (ring, invite, draw with verification, my actions, schedule), savings advisor.

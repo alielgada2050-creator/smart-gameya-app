@@ -10,7 +10,8 @@ for f in "$ROOT"/infrastructure/database/migrations/*.sql; do psql -X -q -d "$DB
 (cd "$ROOT/apps/web" && npx vite build >/dev/null)
 (cd "$ROOT/apps/api" && npx tsc -p tsconfig.json)
 export DATABASE_URL="postgresql://$PGUSER@/$DB?host=$PGHOST&port=$PGPORT" JWT_SECRET=$(openssl rand -hex 32) OTP_PEPPER=$(openssl rand -hex 16) \
-  LOTTERY_SEED_KEY=$(openssl rand -hex 32) DEV_EXPOSE_OTP=true PORT=3100 WEB_DIST="$ROOT/apps/web/dist"
+  LOTTERY_SEED_KEY=$(openssl rand -hex 32) DEV_EXPOSE_OTP=true PORT=3100 WEB_DIST="$ROOT/apps/web/dist" \
+  PAYOUT_ENCRYPTION_KEY=$(openssl rand -hex 32) UPLOAD_DIR=$(mktemp -d) PLATFORM_ADMIN_PHONES=+966500000900 REMINDERS_EVERY_MINUTES=0
 node "$ROOT/apps/api/dist/apps/api/src/main.js" > "${UI_LOG:-/tmp/sg-ui-api.log}" 2>&1 &
 API_PID=$!
 trap 'kill $API_PID 2>/dev/null || true' EXIT

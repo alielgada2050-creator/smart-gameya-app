@@ -1,3 +1,4 @@
+import { Hub, Padlock, Plot, Relay, Settle, Vault } from '@lucasmarkes/hairline/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ApiError } from './api.ts';
 import { useT } from './i18n.ts';
@@ -65,4 +66,30 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
 export function Loading() {
   const { t } = useT();
   return <p className="muted" aria-live="polite">{t.loading}…</p>;
+}
+
+
+const FIGURES = { vault: Vault, plot: Plot, settle: Settle, relay: Relay, padlock: Padlock, hub: Hub } as const;
+
+/**
+ * Hairline line figure (MIT, @lucasmarkes/hairline). Colours come from our skin tokens via --hairline-* on .figure-box;
+ * --hairline-plate always equals the background behind the figure so no plate box shows.
+ */
+export function Figure({ name, label, hero = false, play = false }: { name: keyof typeof FIGURES; label: string; hero?: boolean; play?: boolean }) {
+  const F = FIGURES[name];
+  return <div className={`figure-box${hero ? ' hero' : ''}`}><F label={label} play={play} intensity={0.55} theme="light" /></div>;
+}
+
+export function TierChip({ tier, label }: { tier: string; label: string }) {
+  return <span className={`tier ${tier}`}>{label}</span>;
+}
+
+export function EmptyState({ figure, text, children }: { figure: keyof typeof FIGURES; text: string; children?: ReactNode }) {
+  return (
+    <div className="empty">
+      <Figure name={figure} label={text} />
+      <p className="muted">{text}</p>
+      {children}
+    </div>
+  );
 }

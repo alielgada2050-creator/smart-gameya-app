@@ -1,4 +1,5 @@
 import { chainFromEnv, type ProviderChain } from '../../../../packages/ai-core/src/providers.ts';
+import { TIER_LIMITS, limitsFromEnv, type TierLimits } from '../../../../packages/financial-core/src/tiers.ts';
 
 export interface AppConfig {
   databaseUrl: string;
@@ -8,6 +9,12 @@ export interface AppConfig {
   exposeOtpInResponse: boolean; // development only — never in production
   isProduction: boolean;
   ai: { chain: ProviderChain; skipped: string[] }; // free-tier provider chain; empty chain → deterministic template
+  payoutKey?: Buffer; // 32 bytes, AES-256-GCM key for payout account values (IBAN, wallet numbers)
+  uploadDir?: string; // private directory for receipts and promissory notes (S3-compatible bucket in production)
+  tierLimits?: Record<string, TierLimits | undefined>;
+  google?: { clientId: string; jwksUrl: string; issuers: string[] }; // Sign in with Google (ID token)
+  platformAdminPhones?: string[]; // bootstrap platform admins (E.164); everyone else is a normal user
+  remindersEveryMinutes?: number; // 0 = only on demand
 }
 
 function required(name: string): string {
@@ -16,22 +23,37 @@ function required(name: string): string {
   return v;
 }
 
+function key32(name: string): Buffer {
+  const k = Buffer.from(required(name), 'hex');
+  if (k.length !== 32) throw new Error(`${name} must be 64 hex chars (32 bytes)`);
+  return k;
+}
+
 export function loadConfig(): AppConfig {
   const isProduction = process.env.NODE_ENV === 'production';
-  const key = Buffer.from(required('LOTTERY_SEED_KEY'), 'hex');
-  if (key.length !== 32) throw new Error('LOTTERY_SEED_KEY must be 64 hex chars (32 bytes)');
   const jwtSecret = required('JWT_SECRET');
   if (jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters');
   const expose = process.env.DEV_EXPOSE_OTP === 'true';
   if (expose && isProduction) throw new Error('DEV_EXPOSE_OTP cannot be enabled in production');
+  const clientId = process.env.GOOGLE_CLIENT_ID;
   return {
     databaseUrl: required('DATABASE_URL'),
     jwtSecret,
     otpPepper: required('OTP_PEPPER'),
-    lotterySeedKey: key,
+    lotterySeedKey: key32('LOTTERY_SEED_KEY'),
     exposeOtpInResponse: expose,
     isProduction,
     ai: chainFromEnv(process.env),
+    payoutKey: key32('PAYOUT_ENCRYPTION_KEY'),
+    uploadDir: required('UPLOAD_DIR'),
+    tierLimits: {
+      ...TIER_LIMITS,
+      EGP: limitsFromEnv('EGP', process.env.TIER_LIMITS_EGP),
+      AED: limitsFromEnv('AED', process.env.TIER_LIMITS_AED),
+    },
+    google: clientId ? { clientId, jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs', issuers: ['accounts.google.com', 'https://accounts.google.com'] } : undefined,
+    platformAdminPhones: (process.env.PLATFORM_ADMIN_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    remindersEveryMinutes: Number(process.env.REMINDERS_EVERY_MINUTES ?? 60),
   };
 }
 

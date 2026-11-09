@@ -8,4 +8,4 @@ DB=sg_api_test
 psql -X -q -c "DROP DATABASE IF EXISTS $DB" -c "CREATE DATABASE $DB"
 for f in "$ROOT"/infrastructure/database/migrations/*.sql; do psql -X -q -d "$DB" -v ON_ERROR_STOP=1 -f "$f"; done
 export DATABASE_URL="postgresql://$PGUSER@/$DB?host=$PGHOST&port=$PGPORT"
-cd "$ROOT/apps/api" && npx tsc -p tsconfig.json && node --test --test-concurrency=1 dist/apps/api/test/e2e.test.js
+cd "$ROOT/apps/api" && npx tsc -p tsconfig.json && node --test --test-concurrency=1 dist/apps/api/test/e2e.test.js dist/apps/api/test/features.test.js

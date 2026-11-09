@@ -14,6 +14,13 @@ import { GamiyasService } from './gamiyas/gamiyas.service.ts';
 import { InstallmentsController, InstallmentsService } from './installments/installments.ts';
 import { HealthController } from './health.ts';
 import { AiController, AiService } from './ai/ai.ts';
+import { ChatService } from './chat/chat.service.ts';
+import { ChatController } from './chat/chat.controller.ts';
+import { AssistantService } from './assistant/assistant.ts';
+import { FilesController, FilesService } from './files/files.ts';
+import { NotesController, NotesService } from './notes/notes.ts';
+import { PayoutsController, PayoutsService } from './payouts/payouts.ts';
+import { PublicConfigController } from './public-config.ts';
 
 @Module({})
 export class AppModule implements NestModule {
@@ -24,10 +31,10 @@ export class AppModule implements NestModule {
         JwtModule.register({ secret: config.jwtSecret, signOptions: { algorithm: 'HS256' } }),
         ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
       ],
-      controllers: [HealthController, AuthController, GamiyasController, InstallmentsController, AiController],
+      controllers: [HealthController, PublicConfigController, AuthController, GamiyasController, InstallmentsController, AiController, ChatController, FilesController, NotesController, PayoutsController],
       providers: [
         { provide: CONFIG, useValue: config },
-        Db, Audit, AuthService, GamiyasService, InstallmentsService, AiService,
+        Db, Audit, AuthService, GamiyasService, InstallmentsService, AiService, ChatService, AssistantService, FilesService, NotesService, PayoutsService,
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },

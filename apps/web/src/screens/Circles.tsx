@@ -1,5 +1,5 @@
 import { api } from '../api.ts';
-import { ErrorNote, Loading, Pill, useLoad } from '../components.tsx';
+import { EmptyState, ErrorNote, Loading, Pill, TierChip, useLoad } from '../components.tsx';
 import { money, useT } from '../i18n.ts';
 
 export function Circles() {
@@ -15,16 +15,16 @@ export function Circles() {
         </div>
       </div>
       <ErrorNote error={error} />
-      {!data ? <Loading /> : data.length === 0 ? <p className="panel quiet">{t.noCircles}</p> : (
+      {!data ? <Loading /> : data.length === 0 ? <div className="panel"><EmptyState figure="plot" text={t.noCircles} /></div> : (
         <ul className="list panel">
           {data.map((c) => (
             <li key={c.id}>
               <a href={`#/c/${c.id}`} className="row" style={{ color: 'inherit', textDecoration: 'none' }}>
                 <span>
                   <strong>{c.name}</strong><br />
-                  <span className="muted small">{money(c.contribution, lang)} {t.perMonth[c.frequency]}{t.sep}{t.members(c.joined, c.memberCount)}</span>
+                  <span className="muted small">{money(c.contribution, lang, c.currency)} {t.perMonth[c.frequency]}{t.sep}{t.members(c.joined, c.memberCount)}</span>
                 </span>
-                <Pill status={c.status} label={t.status[c.status]} />
+                <span className="row-start"><TierChip tier={c.tier} label={t.tierName[c.tier]} /><Pill status={c.status} label={t.status[c.status]} /></span>
               </a>
             </li>
           ))}

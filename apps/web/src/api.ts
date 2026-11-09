@@ -13,6 +13,8 @@ const RT_KEY = 'sg.refresh';
 const USER_KEY = 'sg.user';
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
+/** Public auth endpoints never carry or refresh a session; everything else (including /auth/me) does. */
+const isPublicAuth = (path: string) => /^\/auth\/(otp\/|refresh|logout|google)/.test(path);
 
 export interface SessionUser { id: string; fullName: string }
 const store = {
@@ -49,24 +51,57 @@ async function refresh(): Promise<boolean> {
 }
 
 export async function api<T = any>(method: 'GET' | 'POST', path: string, body?: unknown, retry = true): Promise<T> {
-  if (!accessToken && hasSession() && !path.startsWith('/auth/')) await refresh();
+  if (!accessToken && hasSession() && !isPublicAuth(path)) await refresh();
   const res = await fetch(`/api/v1${path}`, {
     method,
     headers: { 'content-type': 'application/json', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (res.status === 401 && retry && !path.startsWith('/auth/') && (await refresh())) return api(method, path, body, false);
+  if (res.status === 401 && retry && !isPublicAuth(path) && (await refresh())) return api(method, path, body, false);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, data.error ?? { code: 'HTTP_ERROR', message: res.statusText });
   return data as T;
+}
+
+/** Multipart upload (receipts, promissory notes). Returns the stored file id. */
+export async function uploadFile(gamiyaId: string, purpose: 'RECEIPT' | 'PROMISSORY_NOTE', file: File): Promise<{ fileId: string }> {
+  if (!accessToken && hasSession()) await refresh();
+  const send = () => {
+    const fd = new FormData();
+    fd.append('purpose', purpose);
+    fd.append('file', file);
+    return fetch(`/api/v1/gamiyas/${gamiyaId}/files`, { method: 'POST', headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {}, body: fd });
+  };
+  let res = await send();
+  if (res.status === 401 && (await refresh())) res = await send();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, data.error ?? { code: 'HTTP_ERROR', message: res.statusText });
+  return data;
+}
+
+/** Open a protected file (receipt / note) in a new tab via a short-lived blob URL; the bearer token never goes in a URL. */
+export async function openFile(fileId: string) {
+  if (!accessToken && hasSession()) await refresh();
+  let res = await fetch(`/api/v1/files/${fileId}`, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  if (res.status === 401 && (await refresh())) res = await fetch(`/api/v1/files/${fileId}`, { headers: { authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new ApiError(res.status, { code: 'FILE', message: res.statusText });
+  const url = URL.createObjectURL(await res.blob());
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+export async function googleSignIn(idToken: string) {
+  const r = await api<any>('POST', '/auth/google', { idToken });
+  if (r.accessToken) { saveTokens(r); try { localStorage.setItem(USER_KEY, JSON.stringify(r.user)); } catch { /* ignore */ } }
+  return r as { needsPhone?: boolean; linkToken?: string; suggestedName?: string; user?: SessionUser };
 }
 
 export async function requestCode(phone: string) {
   return api<{ sent: boolean; devCode?: string }>('POST', '/auth/otp/request', { phone });
 }
 
-export async function verifyCode(phone: string, code: string, fullName?: string) {
-  const r = await api<{ accessToken: string; refreshToken: string; user: SessionUser }>('POST', '/auth/otp/verify', { phone, code, fullName: fullName || undefined });
+export async function verifyCode(phone: string, code: string, fullName?: string, linkToken?: string) {
+  const r = await api<{ accessToken: string; refreshToken: string; user: SessionUser }>('POST', '/auth/otp/verify', { phone, code, fullName: fullName || undefined, linkToken });
   saveTokens(r);
   store.set(USER_KEY, JSON.stringify(r.user));
   return r.user;
@@ -78,9 +113,16 @@ export async function logout() {
   clearSession();
 }
 
-/** Saudi mobile normaliser: accepts 05XXXXXXXX, 5XXXXXXXX, 9665XXXXXXXX, +9665XXXXXXXX, Arabic-Indic digits. */
+/**
+ * Mobile normaliser for the supported countries (Arabic-Indic digits accepted):
+ *  Saudi 05XXXXXXXX / +9665…   Egypt 01[0125]XXXXXXXX / +201…   UAE +9715… / 009715…
+ */
 export function normalizePhone(input: string): string | null {
   const d = input.replace(/[٠-٩]/g, (c) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).replace(/\D/g, '');
-  const m = /^(?:00966|966|0)?(5\d{8})$/.exec(d);
-  return m ? `+966${m[1]}` : null;
+  let m = /^(?:00966|966|0)?(5\d{8})$/.exec(d);
+  if (m) return `+966${m[1]}`;
+  m = /^(?:0020|20|0)(1[0125]\d{8})$/.exec(d);
+  if (m) return `+20${m[1]}`;
+  m = /^(?:00971|971)(5\d{8})$/.exec(d);
+  return m ? `+971${m[1]}` : null;
 }

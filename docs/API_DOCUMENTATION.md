@@ -56,5 +56,49 @@
 
 المدخلات لا تُحفظ. حد 10 طلبات/دقيقة. انظر `docs/AI_PROVIDERS.md`.
 
+## الفئات والسندات والاعتماد
+| الطريقة | المسار | من | الوصف |
+|---|---|---|---|
+| POST | `/gamiyas/preview` | أي مستخدم | يعيد أيضاً `tier`، `requiresPlatformApproval`، `requiresPromissoryNotes`، `tierLimits` |
+| POST | `/gamiyas/:id/files` | عضو | multipart: `file` + `purpose` (`RECEIPT` \| `PROMISSORY_NOTE`)؛ PDF/PNG/JPEG/WEBP ≤ 5MB، النوع يُحدد من البايتات |
+| GET | `/files/:id` | الأطراف فقط | الإيصال: الرافع والمنظم ومستلم القسط (ومراجع المنصة عند اعتراض مفتوح)؛ السند: الرافع والمنظم ومراجعو المنصة |
+| POST | `/gamiyas/:id/promissory-notes` | عضو غير المنظم | `{ fileId, reference }` — القيمة = قيمة القبض، لصالح المنظم |
+| POST | `/gamiyas/:id/platform-review` | المنظم | بعد اكتمال العدد وكل السندات |
+| GET | `/admin/reviews` · POST `/admin/gamiyas/:id/review` | مراجع المنصة | `{ decision: APPROVE\|REJECT, note? }`؛ لا يراجع جمعية هو عضو فيها |
+
+## وسائل الاستلام والتحويل
+| الطريقة | المسار | الوصف |
+|---|---|---|
+| GET | `/payout-methods/directory?country=` | الوسائل المتاحة لكل دولة |
+| GET/POST | `/me/payout-methods` | قائمتي (مقنّعة) / إضافة `{ country, kind, value, isDefault }` مع تحقق الآيبان mod-97 وصيغ المحافظ |
+| POST | `/me/payout-methods/:id/remove` | حذف منطقي |
+| GET | `/installments/:id/pay-to` | لدافع هذا القسط فقط: وسائل المستلم كاملة (مسجل في التدقيق) |
+| GET | `/installments/:id` | الخط الزمني للمعاملة لأطرافها الثلاثة |
+| POST | `/installments/:id/declare-paid` | `{ methodKind, receiptFileId, reference? }` (يتطلب إيصالاً؛ يُعاد بعد الرفض) |
+| POST | `/installments/:id/organizer-approve` · `/organizer-reject` | المنظم (`{ reason }` للرفض) |
+| POST | `/installments/:id/dispute` | المستلم `{ reason }` |
+| POST | `/disputes/:id/resolve` | `{ outcome: PAYER_TO_RESEND\|RECEIPT_VALID, note }` — المنظم، أو مراجع المنصة إن كان المنظم طرفاً |
+| GET | `/gamiyas/:id/disputes` · `/admin/disputes` | الاعتراضات المفتوحة |
+| GET | `/me/obligations` | يضيف `toApprove` للمنظم |
+
+## المحادثة والمساعد والإشعارات
+| الطريقة | المسار | الوصف |
+|---|---|---|
+| GET | `/gamiyas/:id/chat?after=` | الرسائل بعد المعرّف (حتى 200) |
+| POST | `/gamiyas/:id/chat` | `{ body }`؛ الرسائل التي تبدأ بـ `@مساعد` أو `/` يرد عليها المساعد |
+| GET | `/gamiyas/:id/assistant/report` | التقرير وكشف الحساب بصيغة منظمة |
+| POST | `/gamiyas/:id/reminders/run` | المنظم: تذكير فوري (لا يتكرر في اليوم نفسه) |
+| GET | `/me/notifications` · POST `/me/notifications/read` | الإشعارات داخل التطبيق |
+
+## الدخول بـ Google والإعداد العام
+| الطريقة | المسار | الوصف |
+|---|---|---|
+| POST | `/auth/google` | `{ idToken }` ← جلسة إن كان مرتبطاً، وإلا `{ needsPhone, linkToken }` |
+| POST | `/auth/otp/verify` | يقبل `linkToken` لربط Google بالجوال |
+| GET | `/auth/me` | الملف والدور وحالة ربط Google |
+| GET | `/config/public` | `googleClientId` (عام بطبيعته) والدول المفعّلة |
+
+أرقام الجوال المقبولة: السعودية `+9665…`، مصر `+201[0125]…`، الإمارات `+9715…`.
+
 ## الصحة
 `GET /health` (عام).

@@ -14,7 +14,8 @@ export async function createApp(config = loadConfig()) {
     const { join } = await import('node:path');
     const http = app.getHttpAdapter().getInstance();
     http.use((_req: any, res: any, next: any) => {
-      res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+      // Google Identity Services (sign-in button) is the only third-party script, and only from accounts.google.com.
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'");
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Referrer-Policy', 'no-referrer');
       res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');

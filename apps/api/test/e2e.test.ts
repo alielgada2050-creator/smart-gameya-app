@@ -7,6 +7,7 @@ import pg from 'pg';
 import type { INestApplication } from '@nestjs/common';
 import { createServer, type Server } from 'node:http';
 import { createApp } from '../src/main.ts';
+import { testConfigExtras, uploadFile, PNG } from './helpers.ts';
 import { OpenAICompatibleProvider, ProviderChain } from '../../../packages/ai-core/src/providers.ts';
 
 /**
@@ -44,6 +45,7 @@ const config: any = {
   exposeOtpInResponse: true,
   isProduction: false,
   ai: { chain: new ProviderChain([]), skipped: [] },
+  ...testConfigExtras(),
 };
 
 interface Person { name: string; phone: string; ip: string; token: string; id: string }
@@ -98,7 +100,7 @@ describe('auth', () => {
     let last: any;
     for (let i = 0; i < 5; i++) last = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', `10.0.2.${i}`).send({ phone });
     assert.equal(last.status, 429);
-    const intl = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', ip).send({ phone: '+201000000000' });
+    const intl = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', ip).send({ phone: '+14155550100' });
     assert.equal(intl.status, 400);
     assert.equal(intl.body.error.code, 'VALIDATION_FAILED');
     const stored = await db.query('SELECT code_hash FROM otp_challenges WHERE phone_e164=$1', [phone]);
@@ -253,19 +255,41 @@ describe('full circle lifecycle (model A)', () => {
       for (const inst of cycle.installments) {
         const payer = byName.get(inst.payer)!;
         const url = `/api/v1/installments/${inst.installmentId}`;
-        assert.equal((await api(X, 'post', `${url}/declare-paid`, {})).status, 404, 'outsider');
+        assert.equal((await api(X, 'post', `${url}/declare-paid`, { methodKind: 'IBAN_SA', receiptFileId: '00000000-0000-4000-8000-000000000000' })).status, 404, 'outsider');
         assert.equal((await api(recipient, 'post', `${url}/confirm-received`)).body.error.code, 'NOT_DECLARED');
-        assert.equal((await api(recipient, 'post', `${url}/declare-paid`, {})).status, 403, 'recipient cannot declare for the payer');
-        const d = await api(payer, 'post', `${url}/declare-paid`, { reference: 'تحويل 1234' });
+        assert.equal((await api(recipient, 'post', `${url}/declare-paid`, { methodKind: 'IBAN_SA', receiptFileId: '00000000-0000-4000-8000-000000000000' })).status, 403, 'recipient cannot declare for the payer');
+        const declare = async () => {
+          const receipt = await uploadFile(http, payer, circleId, 'RECEIPT', PNG);
+          return api(payer, 'post', `${url}/declare-paid`, { methodKind: 'IBAN_SA', receiptFileId: receipt.fileId, reference: 'تحويل 1234' });
+        };
+        assert.equal((await api(payer, 'post', `${url}/declare-paid`, { methodKind: 'IBAN_SA' })).status, 400, 'a receipt is required');
+        const d = await declare();
         assert.equal(d.status, 200, JSON.stringify(d.body));
-        assert.equal(d.body.status, 'AWAITING_CONFIRMATION');
-        assert.equal((await api(payer, 'post', `${url}/declare-paid`, {})).body.error.code, 'ALREADY_DECLARED');
+        const needsOrg = d.body.needsOrganizer;
+        assert.equal(d.body.status, needsOrg ? 'AWAITING_ORGANIZER' : 'AWAITING_CONFIRMATION');
+        assert.equal((await declare()).body.error.code, 'ALREADY_DECLARED');
         assert.equal((await api(payer, 'post', `${url}/confirm-received`)).status, 403, 'payer cannot confirm their own payment');
-        if (!disputedOnce) {
-          const dis = await api(recipient, 'post', `${url}/dispute`);
-          assert.equal(dis.body.status, 'DISPUTED');
-          disputedOnce = true;
+        if (needsOrg) {
+          assert.equal((await api(recipient, 'post', `${url}/confirm-received`)).body.error.code, 'AWAITING_ORGANIZER', 'organizer approves first');
+          assert.equal((await api(payer, 'post', `${url}/organizer-approve`)).status, 403, 'only the organizer approves');
+          if (!disputedOnce) {
+            // organizer approves, recipient disputes, organizer sends payer back to resend, payer re-declares
+            assert.equal((await api(A, 'post', `${url}/organizer-approve`)).body.status, 'AWAITING_CONFIRMATION');
+            const dis = await api(recipient, 'post', `${url}/dispute`, { reason: 'لم يصل المبلغ إلى حسابي' });
+            assert.equal(dis.body.status, 'DISPUTED');
+            assert.equal((await api(recipient, 'post', `/api/v1/disputes/${dis.body.disputeId}/resolve`, { outcome: 'RECEIPT_VALID', note: 'محاولة' })).status, 403, 'a party cannot resolve');
+            const res = await api(A, 'post', `/api/v1/disputes/${dis.body.disputeId}/resolve`, { outcome: 'PAYER_TO_RESEND', note: 'الإيصال لا يطابق الحساب' });
+            assert.equal(res.status, 200, JSON.stringify(res.body));
+            assert.notEqual(res.body.status, 'DISPUTED');
+            const again = await declare();
+            assert.equal(again.body.status, 'AWAITING_ORGANIZER');
+            assert.equal(again.body.attempts, 2);
+            disputedOnce = true;
+          }
+          assert.equal((await api(A, 'post', `${url}/organizer-approve`)).body.status, 'AWAITING_CONFIRMATION');
         }
+        const timeline = await api(recipient, 'get', url);
+        assert.ok(timeline.body.events.length >= (needsOrg ? 2 : 1) && timeline.body.events[0].event === 'DECLARED');
         lastResult = await api(recipient, 'post', `${url}/confirm-received`);
         assert.equal(lastResult.status, 200);
         assert.equal(lastResult.body.status, 'PAID');

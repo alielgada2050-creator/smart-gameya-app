@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.18" },
-  "scripts": { "test": "node --test test/core.test.ts" }
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test test/core.test.ts test/tiers.test.ts"
+  }
 }

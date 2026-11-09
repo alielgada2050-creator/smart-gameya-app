@@ -1,5 +1,9 @@
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { seal, unseal } from '../common/crypto.ts';
+import { ChatService } from '../chat/chat.service.ts';
+import { classifyPot } from '../../../../packages/financial-core/src/tiers.ts';
+import { COUNTRIES, type Country } from '../../../../packages/financial-core/src/payout-methods.ts';
 import { readFile } from 'node:fs/promises';
 import type pg from 'pg';
 import { CONFIG, type AppConfig } from '../common/config.ts';
@@ -17,12 +21,27 @@ const dec = (minor: bigint, currency: string) => formatMoney(minor, currency).sp
 
 export interface CreateGamiyaInput {
   name: string; currency: string; frequency: Frequency; contribution: string;
-  memberCount: number; startDate: string; graceDays: number; agreementVersionId: string;
+  memberCount: number; startDate: string; graceDays: number; agreementVersionId: string; country: Country;
 }
 
 @Injectable()
 export class GamiyasService implements OnModuleInit {
-  constructor(private readonly db: Db, private readonly audit: Audit, @Inject(CONFIG) private readonly config: AppConfig) {}
+  constructor(private readonly db: Db, private readonly audit: Audit, private readonly chat: ChatService, @Inject(CONFIG) private readonly config: AppConfig) {}
+
+  /** Validate amounts + schedule and classify the tier from the payout value. Throws a 400 with a clear code. */
+  private assess(input: { country: Country; frequency: Frequency; contribution: string; memberCount: number; startDate: string }) {
+    const country = COUNTRIES[input.country];
+    if (!country) throw badRequest('COUNTRY_NOT_SUPPORTED', 'unsupported country');
+    const currency = country.currency;
+    const contribution = parseMoney(input.contribution, currency);
+    const errors = validateConfig({ members: input.memberCount, contribution, currency, frequency: input.frequency, startDate: input.startDate, cycles: input.memberCount });
+    if (errors.length) throw badRequest('INVALID_CIRCLE', errors.join('; '));
+    const s = generateSchedule({ members: input.memberCount, contribution, currency, frequency: input.frequency, startDate: input.startDate });
+    const t = classifyPot(s.potPerCycle, currency, this.config.tierLimits?.[currency]);
+    if (!t.ok && t.reason === 'CURRENCY_NOT_ENABLED') throw badRequest('COUNTRY_NOT_ENABLED', `circles in ${input.country} are not enabled yet`);
+    if (!t.ok) throw badRequest('ABOVE_MAXIMUM', `payout value is above the maximum ${dec(t.limits!.largeMax, currency)} ${currency}`);
+    return { currency, contribution, schedule: s, tier: t };
+  }
 
   // ---------- agreements ----------
   async onModuleInit() {
@@ -64,14 +83,15 @@ export class GamiyasService implements OnModuleInit {
 
   // ---------- circles ----------
   async create(userId: string, input: CreateGamiyaInput, ip: string | null, cid: string) {
-    const contribution = parseMoney(input.contribution, input.currency);
-    const errors = validateConfig({ members: input.memberCount, contribution, currency: input.currency, frequency: input.frequency, startDate: input.startDate, cycles: input.memberCount });
-    if (errors.length) throw badRequest('INVALID_CIRCLE', errors.join('; '));
+    const a = this.assess(input);
+    if (!a.tier.ok) throw badRequest('INVALID_CIRCLE', 'invalid tier');
     return this.db.tx(async (c) => {
       const g = (await c.query(
-        `INSERT INTO gamiyas (creator_id, name, currency, frequency, contribution, member_count, cycle_count, start_date, grace_days, ordering, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'LOTTERY','RECRUITING') RETURNING id`,
-        [userId, input.name, input.currency, input.frequency, dec(contribution, input.currency), input.memberCount, input.startDate, input.graceDays])).rows[0];
+        `INSERT INTO gamiyas (creator_id, name, currency, country, frequency, contribution, member_count, cycle_count, start_date, grace_days, ordering, status, tier, platform_approval)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,'LOTTERY','RECRUITING',$10,$11) RETURNING id`,
+        [userId, input.name, a.currency, input.country, input.frequency, dec(a.contribution, a.currency), input.memberCount, input.startDate, input.graceDays,
+         a.tier.tier, a.tier.requiresPlatformApproval ? 'AWAITING_NOTES' : 'NOT_REQUIRED'])).rows[0];
+      await this.chat.post(c, { gamiyaId: g.id, kind: 'SYSTEM', body: `أُنشئت الجمعية (${tierAr[a.tier.tier]}). القبض لكل دورة ${dec(a.schedule.potPerCycle, a.currency)} ${a.currency}.`, refEntity: 'gamiya', refId: g.id });
       await c.query(`INSERT INTO gamiya_members (gamiya_id, user_id, role, status, joined_at) VALUES ($1,$2,'MANAGER','ACTIVE',now())`, [g.id, userId]);
       await this.acceptAgreement(c, userId, g.id, input.agreementVersionId, ip);
       await this.audit.log(c, { actorId: userId, action: 'GAMIYA_CREATED', entity: 'gamiya', entityId: g.id, correlationId: cid });
@@ -80,20 +100,20 @@ export class GamiyasService implements OnModuleInit {
   }
 
   /** Server-side preview for the create form: the UI never computes amounts or dates itself. */
-  preview(input: Omit<CreateGamiyaInput, 'name' | 'agreementVersionId' | 'graceDays'>) {
-    const contribution = parseMoney(input.contribution, input.currency);
-    const errors = validateConfig({ members: input.memberCount, contribution, currency: input.currency, frequency: input.frequency, startDate: input.startDate, cycles: input.memberCount });
-    if (errors.length) throw badRequest('INVALID_CIRCLE', errors.join('; '));
-    const s = generateSchedule({ members: input.memberCount, contribution, currency: input.currency, frequency: input.frequency, startDate: input.startDate });
+  preview(input: Omit<CreateGamiyaInput, 'name' | 'agreementVersionId' | 'graceDays' | 'currency'>) {
+    const { currency, schedule: s, tier } = this.assess(input);
+    if (!tier.ok) throw badRequest('INVALID_CIRCLE', 'invalid tier');
     return {
-      potPerCycle: dec(s.potPerCycle, input.currency), totalVolume: dec(s.totalVolume, input.currency), endDate: s.endDate,
+      currency, tier: tier.tier, requiresPlatformApproval: tier.requiresPlatformApproval, requiresPromissoryNotes: tier.requiresPromissoryNotes,
+      tierLimits: { smallMax: dec(tier.limits.smallMax, currency), mediumMax: dec(tier.limits.mediumMax, currency), largeMax: dec(tier.limits.largeMax, currency) },
+      potPerCycle: dec(s.potPerCycle, currency), totalVolume: dec(s.totalVolume, currency), endDate: s.endDate,
       cycles: s.cycles.map((c) => ({ cycle: c.index, dueDate: c.dueDate })),
     };
   }
 
   async listMine(userId: string) {
     const { rows } = await this.db.query(
-      `SELECT g.id, g.name, g.currency, g.frequency, g.contribution, g.member_count, g.start_date, g.status, m.role, m.payout_position,
+      `SELECT g.id, g.name, g.currency, g.country, g.tier, g.platform_approval, g.frequency, g.contribution, g.member_count, g.start_date, g.status, m.role, m.payout_position,
               (SELECT count(*)::int FROM gamiya_members x WHERE x.gamiya_id = g.id) AS joined
        FROM gamiyas g JOIN gamiya_members m ON m.gamiya_id = g.id WHERE m.user_id=$1 ORDER BY g.created_at DESC`, [userId]);
     return rows.map(toCircleSummary);
@@ -109,6 +129,10 @@ export class GamiyasService implements OnModuleInit {
     return {
       ...toCircleSummary({ ...g, joined: members.length, payout_position: members.find((m) => m.id === g.member_id)?.payout_position }),
       myMemberId: g.member_id,
+      platformReviewNote: g.platform_review_note,
+      notes: g.tier === 'LARGE' ? (await q.query(
+        `SELECT m.id AS member_id, n.status, n.reference FROM gamiya_members m LEFT JOIN promissory_notes n ON n.member_id = m.id
+         WHERE m.gamiya_id = $1 AND m.role <> 'MANAGER'`, [gamiyaId])).rows.map((r) => ({ memberId: r.member_id, status: r.status ?? 'MISSING', reference: r.member_id === g.member_id || g.role === 'MANAGER' ? r.reference : null })) : null,
       graceDays: g.grace_days,
       orderingMethod: g.ordering,
       potPerCycle: dec(sched.potPerCycle, g.currency),
@@ -145,8 +169,13 @@ export class GamiyasService implements OnModuleInit {
       await this.acceptAgreement(c, userId, g.id, agreementVersionId, ip);
       await c.query(`INSERT INTO gamiya_members (gamiya_id, user_id, role, status, joined_at) VALUES ($1,$2,'MEMBER','ACTIVE',now())`, [g.id, userId]);
       await c.query(`UPDATE gamiya_invitations SET uses = uses + 1 WHERE id=$1`, [inv.id]);
+      const joiner = (await c.query(`SELECT full_name FROM users WHERE id=$1`, [userId])).rows[0];
+      await this.chat.post(c, { gamiyaId: g.id, kind: 'SYSTEM', body: `انضم ${joiner.full_name} إلى الجمعية ووافق على الاتفاقية.`, refEntity: 'member', refId: userId });
       if (count + 1 === g.member_count) {
         await c.query(`UPDATE gamiyas SET status='LOCKED' WHERE id=$1`, [g.id]);
+        await this.chat.post(c, { gamiyaId: g.id, kind: 'SYSTEM', body: g.tier === 'LARGE'
+          ? 'اكتمل العدد. جمعية كبيرة: على كل عضو رفع سند لأمر لصالح المنظم، ثم يطلب المنظم اعتماد إدارة المنصة قبل القرعة.'
+          : 'اكتمل العدد. يمكن للمنظم تجهيز القرعة الآن.', refEntity: 'gamiya', refId: g.id });
         await this.audit.log(c, { actorId: userId, action: 'GAMIYA_LOCKED', entity: 'gamiya', entityId: g.id, correlationId: cid });
       }
       await this.audit.log(c, { actorId: userId, action: 'MEMBER_JOINED', entity: 'gamiya', entityId: g.id, correlationId: cid });
@@ -160,19 +189,8 @@ export class GamiyasService implements OnModuleInit {
     return rows.map((r) => ({ memberId: r.id, eligible: true }));
   }
 
-  private seal(seedHex: string): string {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.config.lotterySeedKey, iv);
-    const ct = Buffer.concat([cipher.update(seedHex, 'utf8'), cipher.final()]);
-    return [iv, cipher.getAuthTag(), ct].map((b) => b.toString('base64')).join('.');
-  }
-
-  private unseal(sealed: string): string {
-    const [iv, tag, ct] = sealed.split('.').map((s) => Buffer.from(s, 'base64'));
-    const d = createDecipheriv('aes-256-gcm', this.config.lotterySeedKey, iv);
-    d.setAuthTag(tag);
-    return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
-  }
+  private seal(seedHex: string): string { return seal(this.config.lotterySeedKey, seedHex, 'lottery-seed'); }
+  private unseal(sealed: string): string { return unseal(this.config.lotterySeedKey, sealed, 'lottery-seed'); }
 
   /** Trial draw: same algorithm, nothing persisted, clearly labelled. */
   async trialDraw(gamiyaId: string, userId: string) {
@@ -187,6 +205,7 @@ export class GamiyasService implements OnModuleInit {
       const g = await this.membership(c, gamiyaId, userId, true);
       this.requireManager(g);
       if (g.status !== 'LOCKED') throw conflict('NOT_LOCKED', 'the circle must be full before the official draw');
+      if (g.tier === 'LARGE' && g.platform_approval !== 'APPROVED') throw conflict('PLATFORM_APPROVAL_REQUIRED', 'large circles need platform approval of the promissory notes before the draw');
       const existing = (await c.query(`SELECT id FROM lottery_sessions WHERE gamiya_id=$1 AND NOT is_trial`, [gamiyaId])).rows[0];
       if (existing) throw conflict('LOTTERY_EXISTS', 'the official draw was already prepared');
       const prep = prepareDraw(gamiyaId, await this.candidates(c, gamiyaId));
@@ -195,6 +214,7 @@ export class GamiyasService implements OnModuleInit {
          VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, prepared_at`,
         [gamiyaId, prep.algorithmVersion, prep.commitment, JSON.stringify(prep.candidates), this.seal(prep.seedHex), userId])).rows[0];
       await this.audit.log(c, { actorId: userId, action: 'LOTTERY_PREPARED', entity: 'lottery_session', entityId: s.id, correlationId: cid, details: { commitment: prep.commitment } });
+      await this.chat.post(c, { gamiyaId, kind: 'SYSTEM', body: `جُهّزت القرعة. البصمة المعلنة: ${prep.commitment}`, refEntity: 'lottery_session', refId: s.id });
       return {
         sessionId: s.id, algorithmVersion: prep.algorithmVersion, commitment: prep.commitment,
         probabilities: selectionProbability(prep.candidates),
@@ -237,6 +257,8 @@ export class GamiyasService implements OnModuleInit {
       for (const o of rec.order) await c.query(`UPDATE gamiya_members SET payout_position=$1 WHERE id=$2`, [o.position, o.memberId]);
       await this.materializeSchedule(c, g);
       await c.query(`UPDATE gamiyas SET status='ACTIVE' WHERE id=$1`, [gamiyaId]);
+      const names = new Map((await c.query(`SELECT m.id, u.full_name FROM gamiya_members m JOIN users u ON u.id = m.user_id WHERE m.gamiya_id=$1`, [gamiyaId])).rows.map((r) => [r.id, r.full_name]));
+      await this.chat.post(c, { gamiyaId, kind: 'SYSTEM', body: `تمت القرعة وتحقق النظام من مطابقتها للبصمة. الترتيب: ${rec.order.map((o) => `${o.position}. ${names.get(o.memberId)}`).join('، ')}`, refEntity: 'lottery_session', refId: s.id });
       await this.audit.log(c, { actorId: userId, action: 'LOTTERY_EXECUTED', entity: 'lottery_session', entityId: s.id, correlationId: cid, details: { approvedBy: approver.user_id } });
       return { record: this.publicRecord(rec), verification: verifyDraw(rec) };
     });
@@ -283,6 +305,8 @@ export class GamiyasService implements OnModuleInit {
   }
 }
 
+export const tierAr: Record<string, string> = { SMALL: 'صغيرة', MEDIUM: 'متوسطة', LARGE: 'كبيرة' };
+
 export function iso(d: Date | string): string {
   if (typeof d === 'string') return d.slice(0, 10);
   // pg returns DATE as a local-midnight Date; format with local components to avoid a TZ shift
@@ -291,7 +315,7 @@ export function iso(d: Date | string): string {
 
 function toCircleSummary(g: any) {
   return {
-    id: g.id, name: g.name, currency: g.currency, frequency: g.frequency, contribution: g.contribution,
+    id: g.id, name: g.name, currency: g.currency, country: g.country, tier: g.tier, platformApproval: g.platform_approval, frequency: g.frequency, contribution: g.contribution,
     memberCount: g.member_count, joined: g.joined, startDate: iso(g.start_date), status: g.status,
     myRole: g.role, myPayoutPosition: g.payout_position ?? null,
   };

@@ -24,7 +24,7 @@ export function Advisor() {
 
   const facts = res?.facts;
   return (
-    <div className="stack">
+    <div className="narrow stack">
       <div className="stack-sm">
         <h1>{t.advisorTitle}</h1>
         <p className="muted">{t.advisorIntro}</p>
@@ -39,7 +39,7 @@ export function Advisor() {
           <label>{t.targetMonths}<input inputMode="numeric" value={f.targetMonths} onChange={num('targetMonths')} maxLength={2} autoComplete="off" /></label>
         </div>
         <ErrorNote error={error} />
-        <button className="btn-primary btn-block" disabled={busy || !f.monthlyIncome || !f.monthlyExpenses || !f.goalAmount}>{t.ask}</button>
+        <button className="btn btn-primary btn-block" disabled={busy || !f.monthlyIncome || !f.monthlyExpenses || !f.goalAmount}>{t.ask}</button>
       </form>
 
       {facts && (
