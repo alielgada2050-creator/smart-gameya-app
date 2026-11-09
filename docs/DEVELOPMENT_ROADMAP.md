@@ -3,10 +3,10 @@
 | المرحلة | المحتوى | البوابة | الحالة |
 |---|---|---|---|
 | 0 Discovery | فحص البيئة، REA، المهارة | — | ✅ |
-| 1 Requirements & Architecture | SRS، البنية، ERD، الامتثال، النواة المالية | **Gate A** (موافقتك) | ✅ مسودة — بانتظار الاعتماد |
-| 2 Core Platform | NestJS: Auth OTP، RBAC، ملفات المستخدم، KYC، التدقيق، لوحة إدارة أولية | Gate B | التالي |
-| 3 Gam'eya Engine | واجهات إنشاء/دعوة/جدولة/قرعة/اتفاقيات فوق financial-core | Gate B + C | |
-| 4 Financial Engine | Payment Adapter (Sandbox)، Webhooks، مطابقة، صرف | Gate C | يتطلب قرار النموذج A/B |
+| 1 Requirements & Architecture | SRS، البنية، ERD، الامتثال، النواة المالية | **Gate A** | ✅ معتمد بالنموذج A |
+| 2 Core Platform | NestJS: Auth OTP ✅، JWT ✅، حدود الطلبات ✅، التدقيق ✅ — متبقٍ: Refresh tokens، KYC ورفع المستندات، أدوار المنصة، لوحة الإدارة | Gate B | جزئي |
+| 3 Gam'eya Engine | إنشاء ✅ دعوة ✅ اتفاقية ✅ قرعة موثقة ✅ جدولة ✅ تسوية بين الأعضاء ✅ — متبقٍ: الترتيب بالتفضيلات/الثابت/المختلط، الانسحاب والاستبدال | Gate B + C | معظمه منفّذ |
+| 4 Financial Engine | **مؤجل بقرار ADR-001**؛ يُعاد تعريفه كتقارير وتسويات إقرارات | — | مؤجل |
 | 5 AI | مساعد ادخار، مُحسّن الأدوار، مؤشرات مخاطر قابلة للتفسير | Gate B | |
 | 6 Notifications | WhatsApp Business API، بريد، Push | Gate B | |
 | 7 Cross-platform | Flutter + Next.js، RTL/LTR، داكن/فاتح | Gate B | |

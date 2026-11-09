@@ -2,7 +2,9 @@
 
 منصة سعودية لإدارة الجمعيات الدورية، مبنية بأسلوب الغرفة النظيفة بعد تحليل وظيفي عام لنموذج Money Fellows عبر مهارة **إعادة استنساخ التطبيقات** (REA).
 
-## الحالة: Phase 0 + Phase 1 (نواة) — بانتظار اعتماد Gate A
+## الحالة: النموذج A معتمد — واجهة API للجمعيات تعمل ومختبرة
+
+**النموذج A:** المنصة أداة تنظيم فقط؛ الأعضاء يحوّلون لبعضهم مباشرة، والقسط يُعتمد بإقرار الدافع وتأكيد المستلم (`docs/AGENT_DECISION_LOG.md`).
 
 | ما أُنجز | أين |
 |---|---|
@@ -14,6 +16,7 @@
 | النواة المالية: مال بلا float، جدولة، رسوم، قرعة قابلة للتحقق، دفتر مزدوج | `packages/financial-core/` |
 | الاختبارات | `docs/TESTING_REPORT.md` |
 | خارطة الطريق | `docs/DEVELOPMENT_ROADMAP.md` |
+| واجهة NestJS: OTP، جمعيات، دعوات، اتفاقيات، قرعة، تسوية بين الأعضاء | `apps/api/`, `docs/API_DOCUMENTATION.md` |
 
 ## تشغيل الاختبارات
 ```bash
@@ -23,6 +26,10 @@ cd packages/financial-core && node --test test/core.test.ts
 # قاعدة البيانات
 createdb sg && psql -d sg -v ON_ERROR_STOP=1 -f infrastructure/database/migrations/001_core.sql
 psql -d sg -f infrastructure/database/tests/001_core_checks.sql
+
+# الواجهة البرمجية (يحتاج PostgreSQL على PGHOST/PGPORT)
+scripts/test-api.sh                       # يعيد إنشاء قاعدة الاختبار ويشغل 12 اختبار E2E
+cd apps/api && npm run build && npm start # مع متغيرات .env.example
 ```
 
 ## مثال: قرعة قابلة للتحقق
