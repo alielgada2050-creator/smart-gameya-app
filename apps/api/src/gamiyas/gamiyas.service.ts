@@ -79,6 +79,18 @@ export class GamiyasService implements OnModuleInit {
     });
   }
 
+  /** Server-side preview for the create form: the UI never computes amounts or dates itself. */
+  preview(input: Omit<CreateGamiyaInput, 'name' | 'agreementVersionId' | 'graceDays'>) {
+    const contribution = parseMoney(input.contribution, input.currency);
+    const errors = validateConfig({ members: input.memberCount, contribution, currency: input.currency, frequency: input.frequency, startDate: input.startDate, cycles: input.memberCount });
+    if (errors.length) throw badRequest('INVALID_CIRCLE', errors.join('; '));
+    const s = generateSchedule({ members: input.memberCount, contribution, currency: input.currency, frequency: input.frequency, startDate: input.startDate });
+    return {
+      potPerCycle: dec(s.potPerCycle, input.currency), totalVolume: dec(s.totalVolume, input.currency), endDate: s.endDate,
+      cycles: s.cycles.map((c) => ({ cycle: c.index, dueDate: c.dueDate })),
+    };
+  }
+
   async listMine(userId: string) {
     const { rows } = await this.db.query(
       `SELECT g.id, g.name, g.currency, g.frequency, g.contribution, g.member_count, g.start_date, g.status, m.role, m.payout_position,
@@ -96,6 +108,7 @@ export class GamiyasService implements OnModuleInit {
     const sched = generateSchedule({ members: g.member_count, contribution, currency: g.currency, frequency: g.frequency, startDate: iso(g.start_date) });
     return {
       ...toCircleSummary({ ...g, joined: members.length, payout_position: members.find((m) => m.id === g.member_id)?.payout_position }),
+      myMemberId: g.member_id,
       graceDays: g.grace_days,
       orderingMethod: g.ordering,
       potPerCycle: dec(sched.potPerCycle, g.currency),
@@ -251,10 +264,12 @@ export class GamiyasService implements OnModuleInit {
     const s = (await this.db.query(
       `SELECT s.id, s.algorithm_version, s.commitment_sha256, s.candidates, s.prepared_at,
               r.revealed_seed_hex, r.public_entropy, r.result_order, r.executed_by, r.approved_by, r.executed_at,
-              (SELECT count(*)::int FROM lottery_approvals a WHERE a.session_id = s.id) AS approvals
-       FROM lottery_sessions s LEFT JOIN lottery_results r ON r.session_id = s.id WHERE s.gamiya_id=$1 AND NOT s.is_trial`, [gamiyaId])).rows[0];
+              (SELECT count(*)::int FROM lottery_approvals a WHERE a.session_id = s.id) AS approvals,
+              s.prepared_by = $2 AS prepared_by_me,
+              EXISTS (SELECT 1 FROM lottery_approvals a WHERE a.session_id = s.id AND a.user_id = $2) AS approved_by_me
+       FROM lottery_sessions s LEFT JOIN lottery_results r ON r.session_id = s.id WHERE s.gamiya_id=$1 AND NOT s.is_trial`, [gamiyaId, userId])).rows[0];
     if (!s) return { state: 'NOT_PREPARED' };
-    if (!s.revealed_seed_hex) return { state: 'PREPARED', sessionId: s.id, commitment: s.commitment_sha256, algorithmVersion: s.algorithm_version, approvals: s.approvals };
+    if (!s.revealed_seed_hex) return { state: 'PREPARED', sessionId: s.id, commitment: s.commitment_sha256, algorithmVersion: s.algorithm_version, approvals: s.approvals, preparedByMe: s.prepared_by_me, approvedByMe: s.approved_by_me };
     const rec: DrawRecord = {
       circleId: gamiyaId, algorithmVersion: s.algorithm_version, candidates: s.candidates, commitment: s.commitment_sha256,
       revealedSeedHex: s.revealed_seed_hex, publicEntropy: s.public_entropy, order: s.result_order,

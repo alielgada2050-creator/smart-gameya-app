@@ -18,6 +18,7 @@
 | خارطة الطريق | `docs/DEVELOPMENT_ROADMAP.md` |
 | واجهة NestJS: OTP وتجديد الجلسات، جمعيات، دعوات، اتفاقيات، قرعة، تسوية بين الأعضاء | `apps/api/`, `docs/API_DOCUMENTATION.md` |
 | مستشار الادخار الذكي على مزودين مجانيين (Groq ← Cloudflare ← قالب ثابت) | `packages/ai-core/`, `docs/AI_PROVIDERS.md` |
+| تطبيق الويب "جمعيتي" (عربي/إنجليزي، فاتح/داكن، قابل للتثبيت) | `apps/web/`, `docs/screenshots/` |
 
 ## تشغيل الاختبارات
 ```bash
@@ -34,6 +35,14 @@ cd packages/ai-core && node --test test/ai.test.ts
 # الواجهة البرمجية (يحتاج PostgreSQL على PGHOST/PGPORT)
 scripts/test-api.sh                       # يعيد إنشاء قاعدة الاختبار ويشغل 17 اختبار E2E
 cd apps/api && npm run build && npm start # مع متغيرات .env.example
+
+# التطبيق في متصفح حقيقي: مستخدمان، رحلة كاملة، لقطات شاشة
+scripts/test-ui.sh
+
+# التشغيل محلياً: الواجهة البرمجية على 3000 ثم
+cd apps/web && npm run dev                # Vite يمرر /api إلى 3000
+# أو بناء الواجهة وخدمتها من الواجهة البرمجية نفسها:
+cd apps/web && npm run build && WEB_DIST=$PWD/dist npm --prefix ../api start
 ```
 
 ## مثال: قرعة قابلة للتحقق

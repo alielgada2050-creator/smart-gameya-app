@@ -9,6 +9,6 @@
 | 4 Financial Engine | **مؤجل بقرار ADR-001**؛ يُعاد تعريفه كتقارير وتسويات إقرارات | — | مؤجل |
 | 5 AI | مستشار الادخار ✅ على مزودين مجانيين (ADR-004) — متبقٍ: مُحسّن الأدوار، مؤشرات المخاطر، تقارير الجمعية | Gate B | بدأ |
 | 6 Notifications | WhatsApp Business API، بريد، Push | Gate B | |
-| 7 Cross-platform | Flutter + Next.js، RTL/LTR، داكن/فاتح | Gate B | |
+| 7 Cross-platform | تطبيق ويب PWA ✅ (RTL/LTR، داكن/فاتح، كل رحلة العضو) — متبقٍ: Flutter (ADR-006)، الموقع التعريفي Next.js | Gate B | بدأ |
 | 8 Enterprise testing | أمن، حمل، E2E (السيناريوهات 1–10) | Gate D | |
 | 9 Deployment | بنية إنتاج داخل المملكة، مراقبة، نسخ احتياطي | Gate E + اعتماد قانوني | |

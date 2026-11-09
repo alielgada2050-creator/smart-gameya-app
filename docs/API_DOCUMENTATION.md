@@ -21,6 +21,7 @@
 |---|---|---|---|
 | GET | `/agreements/current` | أي مستخدم | نص اتفاقية الانضمام + المعرف + بصمة SHA-256 |
 | POST | `/gamiyas` | أي مستخدم | `{ name, frequency: WEEKLY\|BIWEEKLY\|MONTHLY, contribution: "1000", memberCount, startDate, graceDays?, agreementVersionId }` — المنشئ يصبح المدير |
+| POST | `/gamiyas/preview` | أي مستخدم | `{ frequency, contribution, memberCount, startDate }` → `potPerCycle`، `totalVolume`، `endDate`، `cycles` (للمعاينة في نموذج الإنشاء) |
 | GET | `/gamiyas` | — | جمعياتي |
 | GET | `/gamiyas/:id` | عضو | التفاصيل، الأعضاء بالأسماء فقط، قيمة القبض، تاريخ الانتهاء |
 | POST | `/gamiyas/:id/invitations` | المدير | `{ maxUses?, expiresInHours? }` → `code` |

@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.4.0 — 2026-11-09
+- ADR-006: apps/web — installable web app (React + Vite), Arabic RTL first + English, light/dark; rotation ring as the signature view.
+- Screens: sign-in with OTP, home (what to pay / confirm), my circles, create with server preview, join by invite link, circle (ring, invite, draw with verification, my actions, schedule), savings advisor.
+- API: POST /gamiyas/preview, myMemberId, lottery preparedByMe/approvedByMe; same-origin static serving with strict CSP and security headers (WEB_DIST).
+- Real-browser two-user journey test (scripts/test-ui.sh) with screenshots in docs/screenshots.
+
 ## 0.3.0 — 2026-11-09
 - ADR-004: AI on free providers (Groq → Cloudflare Workers AI → deterministic Arabic template) via packages/ai-core.
 - Savings rules engine in financial-core (savings.ts); numeric hallucination guard; NOT_ADVISED never sent to a model.

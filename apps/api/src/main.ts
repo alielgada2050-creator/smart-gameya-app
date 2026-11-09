@@ -8,6 +8,21 @@ export async function createApp(config = loadConfig()) {
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.enableShutdownHooks();
+  const web = process.env.WEB_DIST;
+  if (web) {
+    const express = (await import('express')).default;
+    const { join } = await import('node:path');
+    const http = app.getHttpAdapter().getInstance();
+    http.use((_req: any, res: any, next: any) => {
+      res.setHeader('Content-Security-Policy', "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+      next();
+    });
+    http.use(express.static(web, { index: 'index.html', maxAge: '1h' }));
+    http.get(/^\/(?!api\/).*/, (_req: any, res: any) => res.sendFile(join(web, 'index.html')));
+  }
   return app;
 }
 

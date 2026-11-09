@@ -14,6 +14,7 @@ const CreateSchema = z.object({
   graceDays: z.number().int().min(0).max(14).default(3),
   agreementVersionId: uuid,
 });
+const PreviewSchema = CreateSchema.pick({ currency: true, frequency: true, contribution: true, memberCount: true, startDate: true });
 const InviteSchema = z.object({ maxUses: z.number().int().min(1).max(60).default(1), expiresInHours: z.number().int().min(1).max(168).default(72) });
 const AcceptSchema = z.object({ agreementVersionId: uuid });
 const ExecuteSchema = z.object({ publicEntropy: z.string().trim().min(8).max(200) });
@@ -29,6 +30,9 @@ export class GamiyasController {
   create(@CurrentUser() u: AuthUser, @Body() body: unknown, @ClientIp() ip: string | null, @CorrelationId() cid: string) {
     return this.svc.create(u.id, parseBody(CreateSchema, body), ip, cid);
   }
+
+  @Post('gamiyas/preview') @HttpCode(200)
+  preview(@Body() body: unknown) { return this.svc.preview(parseBody(PreviewSchema, body)); }
 
   @Get('gamiyas')
   mine(@CurrentUser() u: AuthUser) { return this.svc.listMine(u.id); }
