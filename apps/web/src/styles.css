@@ -297,3 +297,26 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
   .bottom-nav a .pip { width: 40px; height: 28px; }
   .figure-box, .figure-box.hero { max-width: 150px; }
 }
+
+/* Smart transfers */
+.transfer-card .ref-row { padding: 10px 12px; border: 1px dashed var(--control-line); border-radius: 10px; background: var(--surface-2); }
+.transfer-card .ref-row .code { font-size: 1.05rem; letter-spacing: .06em; }
+.match { border-radius: 10px; padding: 8px 12px; border: 1px solid var(--line); }
+.match.ok { background: var(--ok-tint); color: var(--ok); }
+.match.warn { background: var(--accent-tint); color: var(--accent-strong); }
+.match summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 6px; }
+.match .checks { list-style: none; padding: 0; margin: 6px 0 2px; display: grid; gap: 4px; color: var(--ink); }
+.match .checks li.bad { color: var(--danger); font-weight: 600; }
+
+/* Payout order */
+.order-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.order-list li { display: grid; grid-template-columns: 2rem 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.order-list .pos { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface-2); font-weight: 700; }
+.order-list .met { color: var(--ok); } .order-list .unmet { color: var(--danger); }
+.vote-list { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.vote-list li { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .85rem; }
+.vote-list li.yes { background: var(--ok-tint); color: var(--ok); border-color: transparent; }
+.explain { margin: 0; padding-inline-start: 1.1rem; display: grid; gap: 4px; }
+.segmented button[aria-checked='true'] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+.sub-panel { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--surface); }
+.sub-panel > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; gap: 6px; }

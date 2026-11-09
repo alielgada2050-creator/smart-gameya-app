@@ -208,6 +208,8 @@ export class GamiyasService implements OnModuleInit {
       if (g.tier === 'LARGE' && g.platform_approval !== 'APPROVED') throw conflict('PLATFORM_APPROVAL_REQUIRED', 'large circles need platform approval of the promissory notes before the draw');
       const existing = (await c.query(`SELECT id FROM lottery_sessions WHERE gamiya_id=$1 AND NOT is_trial`, [gamiyaId])).rows[0];
       if (existing) throw conflict('LOTTERY_EXISTS', 'the official draw was already prepared');
+      const open = (await c.query(`SELECT 1 FROM order_proposals WHERE gamiya_id=$1 AND status='OPEN'`, [gamiyaId])).rows[0];
+      if (open) throw conflict('ORDER_PROPOSAL_OPEN', 'withdraw the open order proposal before choosing the lottery');
       const prep = prepareDraw(gamiyaId, await this.candidates(c, gamiyaId));
       const s = (await c.query(
         `INSERT INTO lottery_sessions (gamiya_id, algorithm_version, commitment_sha256, candidates, seed_ciphertext, prepared_by)
@@ -262,6 +264,21 @@ export class GamiyasService implements OnModuleInit {
       await this.audit.log(c, { actorId: userId, action: 'LOTTERY_EXECUTED', entity: 'lottery_session', entityId: s.id, correlationId: cid, details: { approvedBy: approver.user_id } });
       return { record: this.publicRecord(rec), verification: verifyDraw(rec) };
     });
+  }
+
+  /** Start the circle with an order the members agreed on (see ordering module). Positions follow the array order. */
+  async activateWithOrder(c: pg.PoolClient, gamiyaId: string, memberOrder: string[], method: 'CONSENSUS' | 'PREFERENCE') {
+    const g = (await c.query(`SELECT * FROM gamiyas WHERE id=$1 FOR UPDATE`, [gamiyaId])).rows[0];
+    if (g.status !== 'LOCKED') throw conflict('NOT_LOCKED', 'the circle must be full and not yet started');
+    for (const [i, id] of memberOrder.entries()) await c.query(`UPDATE gamiya_members SET payout_position=$1 WHERE id=$2 AND gamiya_id=$3`, [i + 1, id, gamiyaId]);
+    await this.materializeSchedule(c, g);
+    await c.query(`UPDATE gamiyas SET status='ACTIVE', ordering=$2 WHERE id=$1`, [gamiyaId, method]);
+  }
+
+  /** Due date of each cycle, in order. */
+  cycleDates(g: any): string[] {
+    const sched = generateSchedule({ members: g.member_count, contribution: parseMoney(g.contribution, g.currency), currency: g.currency, frequency: g.frequency, startDate: iso(g.start_date) });
+    return sched.cycles.map((c) => c.dueDate);
   }
 
   /** Cycles + installments. In model A each member pays the cycle recipient directly; the recipient owes no installment to themselves. */

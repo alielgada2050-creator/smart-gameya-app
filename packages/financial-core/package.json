@@ -7,6 +7,6 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --test test/core.test.ts test/tiers.test.ts"
+    "test": "node --test test/core.test.ts test/tiers.test.ts test/ordering.test.ts"
   }
 }

@@ -5,6 +5,7 @@ import { Db } from '../common/db.ts';
 import { Audit } from '../common/audit.ts';
 import { seal, unseal } from '../common/crypto.ts';
 import { badRequest, CorrelationId, CurrentUser, notFound, parseBody, parseId, type AuthUser } from '../common/http.ts';
+import { transferGuide, transferReference } from '../../../../packages/financial-core/src/transfer.ts';
 import { COUNTRIES, METHODS, methodsFor, normalizeMethodValue, type Country } from '../../../../packages/financial-core/src/payout-methods.ts';
 
 const AddSchema = z.object({ country: z.enum(['SA', 'EG', 'AE']), kind: z.string().max(32), value: z.string().trim().min(3).max(64), isDefault: z.boolean().default(true) });
@@ -65,16 +66,20 @@ export class PayoutsService {
        JOIN gamiya_members payer ON payer.id = i.member_id JOIN gamiya_members rcp ON rcp.id = cy.recipient_member_id JOIN users ru ON ru.id = rcp.user_id
        WHERE i.id=$1`, [installmentId])).rows[0];
     if (!r || r.payer_user_id !== userId) throw notFound('installment');
-    if (r.confirmed) return { recipient: r.recipient_name, amount: r.amount_due, currency: r.currency, methods: [], note: 'already confirmed' };
+    const reference = transferReference(r.id);
+    if (r.confirmed) return { recipient: r.recipient_name, amount: r.amount_due, currency: r.currency, reference, methods: [], note: 'already confirmed' };
     const methods = (await this.db.query(
       `SELECT id, kind, value_ciphertext, is_default FROM payout_methods WHERE user_id=$1 AND country=$2 AND deleted_at IS NULL ORDER BY is_default DESC, created_at`,
       [r.recipient_user_id, r.country])).rows;
     await this.audit.log(this.db, { actorId: userId, action: 'PAYOUT_DETAILS_VIEWED', entity: 'installment', entityId: installmentId, correlationId: cid, details: { recipient: r.recipient_user_id, count: methods.length } });
     return {
       recipient: r.recipient_name, amount: r.amount_due, currency: r.currency,
+      // Write this in the transfer note: it lets the organizer and the recipient match the transfer to this installment.
+      reference,
       methods: methods.map((m) => {
         const spec = METHODS.find((s) => s.kind === m.kind)!;
-        return { kind: m.kind, name: spec.name, value: unseal(this.config.payoutKey!, m.value_ciphertext, aad(r.recipient_user_id)), isDefault: m.is_default };
+        return { kind: m.kind, name: spec.name, value: unseal(this.config.payoutKey!, m.value_ciphertext, aad(r.recipient_user_id)), isDefault: m.is_default,
+                 guide: transferGuide(m.kind, Number(r.amount_due), r.currency) };
       }),
     };
   }

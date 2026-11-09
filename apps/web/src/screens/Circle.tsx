@@ -5,6 +5,7 @@ import { date, money, useT } from '../i18n.ts';
 import { Icon } from '../shell/icons.tsx';
 import { Obligations } from './Obligations.tsx';
 import { Chat } from './Chat.tsx';
+import { PayoutOrder } from './Ordering.tsx';
 
 export function Circle({ id, tab }: { id: string; tab: string }) {
   const { t, lang } = useT();
@@ -85,8 +86,9 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
           <div className="stack">
             {c.tier === 'LARGE' && <LargeNotes id={id} circle={c} onChange={reloadAll} />}
             {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <Invite id={id} remaining={c.memberCount - c.joined} />}
-            {(c.status === 'LOCKED' || c.status === 'RECRUITING' || lottery.data?.state === 'EXECUTED') && (
-              <Lottery id={id} circle={c} state={lottery.data} onChange={reloadAll} />
+            {lottery.data && (
+              <PayoutOrder id={id} circle={c} lotteryState={lottery.data} onChange={reloadAll}
+                lotteryPanel={<Lottery id={id} circle={c} state={lottery.data} onChange={reloadAll} />} />
             )}
           </div>
         </div>

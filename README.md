@@ -21,6 +21,7 @@
 | تطبيق الويب "جمعيتي": تصميم عصري متكيّف للكمبيوتر والتابلت والجوال (شريط جانبي/سفلي)، 4 أغلفة، عربي/إنجليزي، قابل للتثبيت كتطبيق (PWA) | `apps/web/`, `docs/screenshots/` |
 | فئات الجمعيات، السندات واعتماد المنصة، وسائل الاستلام حسب الدولة، الإيصالات والاعتماد الثلاثي، الاعتراضات | `docs/AGENT_DECISION_LOG.md` (ADR-007…009) |
 | محادثة الجمعية، المساعد، التذكيرات، الإشعارات، الدخول بـ Google | ADR-008، ADR-010 |
+| ترتيب القبض: قرعة، أو بالاتفاق، أو بالأولوية مع اقتراح المساعد (بموافقة جميع الأعضاء)؛ تحويلات ذكية برقم مرجعي ومطابقة تلقائية دون حيازة أموال | ADR-013، ADR-014 |
 
 ## تشغيل الاختبارات
 ```bash
@@ -30,6 +31,7 @@ cd packages/financial-core && node --test test/core.test.ts
 # قاعدة البيانات
 createdb sg && psql -d sg -v ON_ERROR_STOP=1 -f infrastructure/database/migrations/001_core.sql
 psql -d sg -f infrastructure/database/tests/001_core_checks.sql
+psql -d sg -f infrastructure/database/tests/005_ordering_checks.sql
 
 # طبقة الذكاء الاصطناعي (خادم مزود وهمي محلي، بلا مفاتيح)
 cd packages/ai-core && node --test test/ai.test.ts

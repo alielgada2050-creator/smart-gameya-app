@@ -15,8 +15,8 @@
 | 09 | AI Engineer | packages/ai-core | سلسلة مزودين مجانية، حارس الأرقام، مستشار الادخار | ✅ جزئي (Phase 5) |
 | 10 | Financial Systems | packages/financial-core | المال، الجدولة، الرسوم، القرعة، الدفتر | ✅ مختبر |
 | 11 | Cybersecurity | SECURITY.md | نموذج تهديد أولي | Phase 1b |
-| 12 | QA Automation | tests/, */test | 14 مالية + 8 ذكاء + 9 SQL + 30 API + رحلة متصفح (3 أعضاء + مراجع) | ✅ |
-| 13 | Integration | packages/notification-core, apps/api/payments | — | Phase 4/6 |
+| 12 | QA Automation | tests/, */test | 18 مالية + 8 ذكاء + 9+6 SQL + 34 API + رحلة متصفح (3 أعضاء + مراجع) | ✅ |
+| 13 | Integration | packages/financial-core/src/transfer.ts, apps/api/src/ordering | تحويلات ذكية دون حيازة أموال + ترتيب بالاتفاق/الأولوية (ADR-013/014) | ✅ |
 | 14 | DevOps | infrastructure/, .github/ | — | Phase 2 |
 | 15 | Documentation | docs/ | التقارير | ✅ |
 

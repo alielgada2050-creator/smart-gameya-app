@@ -22,6 +22,11 @@ def _png(w=48, h=24, rgb=(47, 102, 144)):
 
 
 PNG = _png()
+_rc = [0]
+def receipt_png():
+    """Every real receipt is a different file; the app refuses to reuse one receipt for two payments."""
+    _rc[0] += 1
+    return _png(rgb=(40 + _rc[0] % 200, 90, 140))
 PDF = b"%PDF-1.4\n% promissory note (test)\n%%EOF"
 IBAN = "SA0380000000608010167519"
 
@@ -121,9 +126,9 @@ with sync_playwright() as p:
     browser = p.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
     phone = {"width": 390, "height": 844}
     desk = {"width": 1280, "height": 900}
-    A = browser.new_context(viewport=desk, locale="ar-SA").new_page()   # organizer, desktop
-    B = browser.new_context(viewport=phone, locale="ar-SA").new_page()  # member, phone
-    C = browser.new_context(viewport=phone, locale="ar-SA").new_page()  # member, phone
+    A = browser.new_context(viewport=desk, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()   # organizer, desktop
+    B = browser.new_context(viewport=phone, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()  # member, phone
+    C = browser.new_context(viewport=phone, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()  # member, phone
     for pg, w in ((A, "A"), (B, "B"), (C, "C")):
         watch(pg, w)
 
@@ -202,7 +207,7 @@ with sync_playwright() as p:
                 if who == "B":
                     shot(pg, "06-pay-to-phone")
                 pg.get_by_label("وسيلة التحويل").select_option("IBAN_SA")
-                pg.get_by_label("إيصال التحويل (PDF أو صورة)").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": PNG})
+                pg.get_by_label("إيصال التحويل (PDF أو صورة)").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": receipt_png()})
                 pg.get_by_role("button", name="أرسل الإيصال للاعتماد").click()
                 expect(pg.get_by_text("أُرسل الإيصال")).to_be_visible()
                 progressed = True
@@ -225,6 +230,80 @@ with sync_playwright() as p:
     shot(B, "08-chat-phone")
     no_hscroll(B, "chat-phone")
 
+    # 5b. Payout order by priority (AI suggestion) → objection → agreed order → every member approves
+    create_circle(A, "جمعية الأولوية", "1000", 3, "2027-01-01", "صغيرة")
+    A.get_by_role("button", name="أنشئ الجمعية").click()
+    expect(A.get_by_role("heading", name="جمعية الأولوية")).to_be_visible()
+    invite_and_join(A, [B, C], "جمعية الأولوية")
+    for pg, pref, when, reason in ((B, "أحتاجه مبكراً", "2027-01-20", "WEDDING"), (C, "أفضّل التأخير", None, "NONE")):
+        open_circle(pg, "جمعية الأولوية")
+        pg.get_by_test_id("payout-order").get_by_role("radio", name="بالأولوية").click()
+        pg.get_by_role("radio", name=pref).click()
+        if when:
+            pg.get_by_label("أحتاج المبلغ قبل (اختياري)").fill(when)
+        pg.get_by_label("السبب (اختياري)").select_option(reason)
+        if reason != "NONE":
+            pg.get_by_label("أظهر السبب لبقية الأعضاء").check()
+        pg.get_by_role("button", name="احفظ أولويتي").click()
+        expect(pg.get_by_text("حُفظت أولويتك")).to_be_visible()
+    shot(B, "21-priority-phone")
+    no_hscroll(B, "priority-phone")
+    open_circle(A, "جمعية الأولوية")
+    A.get_by_test_id("payout-order").get_by_role("radio", name="بالأولوية").click()
+    expect(A.get_by_test_id("priority-requests")).to_contain_text("زواج")
+    A.get_by_role("button", name="اقتراح المساعد الذكي").click()
+    sug = A.get_by_test_id("suggestion")
+    expect(sug.locator("li").first).to_contain_text("خالد")
+    expect(sug.locator(".order-list li").last).to_contain_text("نورة")
+    expect(sug).to_contain_text("لا يفاضل بين الأسباب")
+    shot(A, "22-ai-suggestion")
+    A.get_by_role("button", name="اقترح هذا الترتيب على الأعضاء").click()
+    expect(A.get_by_test_id("open-proposal")).to_contain_text("وافق 1 من 3")
+    open_circle(B, "جمعية الأولوية")
+    B.get_by_role("button", name="أوافق على هذا الترتيب").click()
+    expect(B.get_by_text("وافقت. يُعتمد الترتيب")).to_be_visible()
+    open_circle(C, "جمعية الأولوية")
+    expect(C.get_by_test_id("open-proposal")).to_contain_text("وافق 2 من 3")
+    shot(C, "23-vote-phone")
+    C.get_by_role("button", name="أعترض").click()
+    C.get_by_label("سبب الاعتراض (يراه الجميع)").fill("تغيّر ظرفي وأحتاج الدور الثاني")
+    C.get_by_role("button", name="أرسل الاعتراض").click()
+    expect(C.get_by_text("اعتُرض على الاقتراح السابق")).to_be_visible()
+    A.reload()
+    A.get_by_test_id("payout-order").get_by_role("radio", name="بالاتفاق").click()
+    A.get_by_role("button", name="قدّم خالد").click()
+    A.get_by_role("button", name="أخّر سارة").click()
+    expect(A.get_by_test_id("build-order").locator("li").nth(1)).to_contain_text("نورة")
+    A.get_by_label("ملاحظة للأعضاء (اختياري)").fill("كما اتفقنا في المحادثة")
+    A.get_by_role("button", name="اقترح الترتيب على الأعضاء").click()
+    for pg in (B, C):
+        pg.reload()
+        pg.get_by_role("button", name="أوافق على هذا الترتيب").click()
+    expect(C.get_by_test_id("order-adopted")).to_be_visible()
+    open_circle(A, "جمعية الأولوية")
+    expect(A.get_by_test_id("order-adopted")).to_contain_text("بالاتفاق")
+    expect(A.get_by_test_id("my-turn")).to_contain_text("3")
+
+    # 5c. Smart transfer: reference + steps, then the automatic match flags a short amount for the recipient
+    open_circle(A, "جمعية الأولوية", "المدفوعات")
+    A.get_by_role("button", name="سجّل تحويلك").first.click()
+    A.get_by_role("button", name="اعرض بيانات التحويل").click()
+    expect(A.get_by_test_id("transfer-ref")).to_have_text(re.compile(r"^JM-[A-Z2-9]{4}-[A-Z2-9]{4}$"))
+    A.get_by_text("خطوات التحويل").first.click()
+    expect(A.get_by_test_id("pay-to")).to_contain_text("تحويل فوري")
+    A.get_by_label("وسيلة التحويل").select_option("IBAN_SA")
+    A.get_by_label("المبلغ الذي حوّلته").fill("900")
+    A.get_by_label("رقم العملية (اختياري)").fill("SARIE-5521")
+    A.get_by_label("إيصال التحويل (PDF أو صورة)").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": receipt_png()})
+    shot(A, "24-transfer-card")
+    A.get_by_role("button", name="أرسل الإيصال للاعتماد").click()
+    expect(A.get_by_text("أُرسل الإيصال")).to_be_visible()
+    open_circle(B, "جمعية الأولوية", "المدفوعات")
+    expect(B.get_by_test_id("match")).to_contain_text("1 ملاحظة للمراجعة")
+    expect(B.get_by_test_id("match")).to_contain_text("المبلغ يطابق القسط")
+    shot(B, "25-match-phone")
+    no_hscroll(B, "match-phone")
+
     # 6. Large circle: notes payable to the organizer, platform approval, then the draw unlocks
     create_circle(A, "الجمعية الكبيرة", "20000", 3, "2027-02-01", "كبيرة")
     expect(A.get_by_test_id("tier-rule")).to_contain_text("سند لأمر")
@@ -242,7 +321,7 @@ with sync_playwright() as p:
     expect(A.get_by_test_id("large-notes")).to_contain_text("قيد مراجعة إدارة المنصة")
     shot(A, "09-large-pending")
 
-    R = browser.new_context(viewport=desk, locale="ar-SA").new_page()
+    R = browser.new_context(viewport=desk, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()
     watch(R, "Reviewer")
     sign_in(R, "0500000900", "مراجعة المنصة")
     nav(R, "الإدارة")
@@ -314,4 +393,4 @@ with sync_playwright() as p:
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("UI journey passed: payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")
+print("UI journey passed: payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")

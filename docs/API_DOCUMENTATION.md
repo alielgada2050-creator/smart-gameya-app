@@ -100,5 +100,19 @@
 
 أرقام الجوال المقبولة: السعودية `+9665…`، مصر `+201[0125]…`، الإمارات `+9715…`.
 
+## ترتيب القبض (بالاتفاق / بالأولوية)
+| الطريقة | المسار | من | ملاحظات |
+|---|---|---|---|
+| GET | `/api/v1/gamiyas/:id/order` | عضو | الحالة، الأولويات (الملاحظة للمنظم وصاحبها فقط)، الاقتراح المفتوح والأصوات |
+| POST | `/api/v1/gamiyas/:id/order/priority` | عضو | `{preference: EARLY\|NONE\|LATE, neededBy?, reason?, shareReason?, note?}` — قبل بدء الجمعية |
+| GET | `/api/v1/gamiyas/:id/order/suggestion` | عضو | اقتراح المساعد مع الشرح؛ 409 `NOT_FULL` قبل اكتمال العدد |
+| POST | `/api/v1/gamiyas/:id/order/proposals` | المنظم | `{mode: AGREED\|PRIORITY, order: memberId[], rationale?}`؛ 409 `ORDER_PROPOSAL_OPEN`/`LOTTERY_EXISTS`، 400 `INVALID_ORDER` |
+| POST | `/api/v1/gamiyas/:id/order/proposals/:pid/vote` | عضو | `{vote: APPROVE\|OBJECT, reason}` (السبب إلزامي للاعتراض)؛ يُعتمد ويبدأ عند موافقة الجميع |
+| POST | `/api/v1/gamiyas/:id/order/proposals/:pid/withdraw` | المنظم | سحب اقتراح مفتوح |
+
+## التحويلات الذكية
+- `GET /installments/:id/pay-to` يعيد الآن `reference` (رقم مرجعي ثابت مثل `JM-7KQ4-P2XD`) و`guide` لكل وسيلة (خطوات، رابط طالب الهاتف لفودافون كاش، تنبيه الحدود).
+- `POST /installments/:id/declare-paid` يقبل `amount` و`transferDate` (اختياريان للتوافق، والواجهة ترسلهما)، ويعيد `match` (فحوص: AMOUNT, DATE, METHOD, RECEIPT_UNIQUE, BANK_REF_UNIQUE). 409 `RECEIPT_ALREADY_USED` عند إرفاق إيصال استُخدم لدفعة أخرى.
+
 ## الصحة
 `GET /health` (عام).

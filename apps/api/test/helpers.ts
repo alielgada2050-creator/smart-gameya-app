@@ -18,7 +18,9 @@ export function testConfigExtras(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** Each call uploads a distinct file (random tail), like real receipts; pass the same fileId to test receipt reuse. */
 export async function uploadFile(http: any, p: { ip: string; token: string }, gamiyaId: string, purpose: string, bytes: Buffer, name = 'receipt.png') {
+  bytes = Buffer.concat([bytes, randomBytes(16)]);
   const r = await http.post(`/api/v1/gamiyas/${gamiyaId}/files`).set('X-Forwarded-For', p.ip).set('Authorization', `Bearer ${p.token}`)
     .field('purpose', purpose).attach('file', bytes, name);
   if (r.status !== 201) throw new Error(`upload failed ${r.status} ${JSON.stringify(r.body)}`);

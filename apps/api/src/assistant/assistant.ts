@@ -2,6 +2,7 @@ import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from '@ne
 import { CONFIG, type AppConfig } from '../common/config.ts';
 import { Db, type Queryable } from '../common/db.ts';
 import { ChatService } from '../chat/chat.service.ts';
+import { OrderingService } from '../ordering/ordering.ts';
 import { guardNumbers } from '../../../../packages/ai-core/src/advisor.ts';
 
 /**
@@ -11,7 +12,7 @@ import { guardNumbers } from '../../../../packages/ai-core/src/advisor.ts';
  */
 const TODAY = `(now() AT TIME ZONE 'Asia/Riyadh')::date`;
 
-export type Intent = 'help' | 'report' | 'statement' | 'late' | 'next' | 'disputes' | 'remind' | 'question';
+export type Intent = 'help' | 'report' | 'statement' | 'late' | 'next' | 'disputes' | 'remind' | 'order' | 'question';
 
 export function detectIntent(text: string): Intent {
   const t = text.replace(/^\s*(@مساعد|@المساعد|@assistant|\/)\s*/i, '').trim().toLowerCase();
@@ -19,6 +20,7 @@ export function detectIntent(text: string): Intent {
   if (/(تقرير|حالة الجمعية|الحالة|report|status)/.test(t)) return 'report';
   if (/(حسابي|كشف|رصيدي|statement|balance|my account)/.test(t)) return 'statement';
   if (/(متأخر|المتأخرين|late|overdue)/.test(t)) return 'late';
+  if (/(الترتيب|ترتيب|الأولوية|أولوية|اولوية|order|priority)/.test(t)) return 'order';
   if (/(القادم|الموعد|موعد|next|due)/.test(t)) return 'next';
   if (/(اعتراض|نزاع|اعتراضات|dispute)/.test(t)) return 'disputes';
   if (/(ذكّر|ذكر|تذكير|remind)/.test(t)) return 'remind';
@@ -33,6 +35,7 @@ const HELP = [
   'حسابي — ما دفعته وما عليك وما ستستلمه',
   'المتأخرين — من تأخر عن موعده',
   'القادم — الموعد القادم ومستلمه',
+  'الترتيب — حالة ترتيب القبض والتصويت عليه',
   'اعتراضات — الاعتراضات المفتوحة',
   'تذكير — يرسل تذكيراً الآن (للمنظم)',
 ].join('\n');
@@ -40,7 +43,7 @@ const HELP = [
 @Injectable()
 export class AssistantService implements OnModuleInit, OnModuleDestroy {
   #timer: NodeJS.Timeout | null = null;
-  constructor(private readonly db: Db, private readonly chat: ChatService, @Inject(CONFIG) private readonly config: AppConfig) {}
+  constructor(private readonly db: Db, private readonly chat: ChatService, private readonly ordering: OrderingService, @Inject(CONFIG) private readonly config: AppConfig) {}
 
   onModuleInit() {
     const every = this.config.remindersEveryMinutes ?? 0;
@@ -125,6 +128,7 @@ export class AssistantService implements OnModuleInit, OnModuleDestroy {
       const l = await this.lateList(this.db, gamiyaId);
       return l.length ? `المتأخرون بعد فترة السماح:\n${l.map((x) => `${x.payer}: ${this.fmt(x.amount)} (الدورة ${x.cycle}، موعدها ${x.dueDate})`).join('\n')}` : 'لا يوجد متأخرون. أحسنتم.';
     }
+    if (intent === 'order') return this.ordering.assistantLine(gamiyaId, userId);
     if (intent === 'next') {
       const r = await this.report(this.db, gamiyaId);
       return r.current ? `الدورة القادمة ${r.current.cycle}: يستلم ${r.current.recipient} قبض ${this.fmt(r.current.pot)} ${r.currency} في ${r.current.dueDate}.` : 'لا توجد دورة قادمة.';

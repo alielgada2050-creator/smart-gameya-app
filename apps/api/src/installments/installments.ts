@@ -6,6 +6,7 @@ import { conflict, CorrelationId, CurrentUser, forbidden, notFound, parseBody, p
 import { GamiyasService } from '../gamiyas/gamiyas.service.ts';
 import { ChatService } from '../chat/chat.service.ts';
 import { METHODS } from '../../../../packages/financial-core/src/payout-methods.ts';
+import { matchDeclaration, transferReference } from '../../../../packages/financial-core/src/transfer.ts';
 
 /**
  * Model A settlement with three approvals (owner request 2026-11-09):
@@ -43,10 +44,15 @@ const BASE = `
 
 const FIELDS = `i.id, g.id AS gamiya_id, g.name AS gamiya_name, g.currency, g.country, cy.cycle_index, cy.due_date, i.amount_due,
   pu.full_name AS payer_name, ru.full_name AS recipient_name, payer.user_id AS payer_user_id, rcp.user_id AS recipient_user_id, mgr.user_id AS organizer_user_id,
-  s.payer_reference, s.method_kind, s.receipt_file_id, s.attempts, ${NEEDS_ORGANIZER} AS needs_organizer, ${EFFECTIVE_STATUS} AS status`;
+  s.payer_reference, s.method_kind, s.receipt_file_id, s.attempts, s.declared_amount, s.transfer_date, s.match_result, ${NEEDS_ORGANIZER} AS needs_organizer, ${EFFECTIVE_STATUS} AS status`;
 
 const ref = z.string().trim().max(64).regex(/^[\p{L}\p{N} _\-#/]*$/u);
-const DeclareSchema = z.object({ methodKind: z.string().max(32), receiptFileId: uuid, reference: ref.optional() });
+const DeclareSchema = z.object({
+  methodKind: z.string().max(32), receiptFileId: uuid, reference: ref.optional(),
+  // Smart transfers: what was actually sent and when; checked automatically against what was due.
+  amount: z.string().regex(/^\d{1,9}(\.\d{1,2})?$/).optional(),
+  transferDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 const ReasonSchema = z.object({ reason: z.string().trim().min(3).max(500) });
 const ResolveSchema = z.object({ outcome: z.enum(['PAYER_TO_RESEND', 'RECEIPT_VALID']), note: z.string().trim().min(3).max(500) });
 
@@ -57,7 +63,14 @@ function view(r: any, me: string) {
     amount: r.amount_due, currency: r.currency, country: r.country, payer: r.payer_name, recipient: r.recipient_name, direction: role,
     status: r.status, reference: r.payer_reference ?? null, methodKind: r.method_kind ?? null, receiptFileId: r.receipt_file_id ?? null,
     needsOrganizer: r.needs_organizer, attempts: r.attempts ?? 0,
+    transferReference: transferReference(r.id),
+    declaredAmount: r.declared_amount ?? null, transferDate: r.transfer_date ? isoDate(r.transfer_date) : null, match: r.match_result ?? null,
   };
+}
+
+function isoDate(d: Date | string) {
+  if (typeof d === 'string') return d.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 const money = (r: any) => `${r.amount_due} ${r.currency}`;
@@ -126,22 +139,41 @@ export class InstallmentsService {
       if (r.has_settlement && !r.voided_at) throw conflict('ALREADY_DECLARED', 'payment already declared');
       if (!METHODS.some((m) => m.kind === input.methodKind && m.country === r.country) && input.methodKind !== 'OTHER')
         throw conflict('UNKNOWN_METHOD', 'choose a transfer method available in this circle’s country');
-      const f = (await c.query(`SELECT 1 FROM uploaded_files WHERE id=$1 AND owner_id=$2 AND gamiya_id=$3 AND purpose='RECEIPT'`, [input.receiptFileId, userId, r.gamiya_id])).rows[0];
+      const f = (await c.query(`SELECT sha256 FROM uploaded_files WHERE id=$1 AND owner_id=$2 AND gamiya_id=$3 AND purpose='RECEIPT'`, [input.receiptFileId, userId, r.gamiya_id])).rows[0];
       if (!f) throw notFound('receipt');
+      // A transfer can't predate the circle or be in the future (DATE check). One transfer pays one installment: the same receipt file (by content hash) cannot be attached to another installment.
+      const reused = (await c.query(
+        `SELECT 1 FROM installment_settlements s JOIN uploaded_files uf ON uf.id = s.receipt_file_id
+         WHERE uf.sha256=$1 AND s.installment_id <> $2 AND s.voided_at IS NULL LIMIT 1`, [f.sha256, id])).rows[0];
+      if (reused) throw conflict('RECEIPT_ALREADY_USED', 'this receipt is already attached to another payment');
+      const bankRefUsed = input.reference ? !!(await c.query(
+        `SELECT 1 FROM installment_settlements s JOIN gamiya_installments i ON i.id = s.installment_id JOIN gamiya_cycles cy ON cy.id = i.cycle_id
+         WHERE cy.gamiya_id=$1 AND s.installment_id <> $2 AND s.voided_at IS NULL AND lower(s.payer_reference) = lower($3) LIMIT 1`, [r.gamiya_id, id, input.reference])).rows[0] : false;
+      const recipientKinds = (await c.query(`SELECT kind FROM payout_methods WHERE user_id=$1 AND country=$2 AND deleted_at IS NULL`, [r.recipient_user_id, r.country])).rows.map((x) => x.kind);
+      const today = (await c.query(`SELECT ${TODAY}::text AS d, (g.created_at AT TIME ZONE 'Asia/Riyadh')::date::text AS earliest FROM gamiya_cycles cy JOIN gamiya_installments i ON i.cycle_id = cy.id JOIN gamiyas g ON g.id = cy.gamiya_id WHERE i.id=$1`, [id])).rows[0];
+      const m = matchDeclaration({
+        amountDue: String(r.amount_due), declaredAmount: input.amount ?? '0', transferDate: input.transferDate ?? '0000-00-00', earliest: today.earliest, today: today.d,
+        methodKind: input.methodKind, recipientKinds, receiptUsedElsewhere: false, bankRefUsedElsewhere: bankRefUsed,
+      });
+      const match = { ...m, provided: { amount: !!input.amount, transferDate: !!input.transferDate } };
       if (r.has_settlement) {
         await c.query(`UPDATE installment_settlements SET payer_declared_at=now(), payer_reference=$2, method_kind=$3, receipt_file_id=$4, voided_at=NULL,
-                         disputed=false, organizer_approved_at=NULL, organizer_approved_by=NULL, attempts=attempts+1 WHERE installment_id=$1`,
-          [id, input.reference ?? null, input.methodKind, input.receiptFileId]);
+                         disputed=false, organizer_approved_at=NULL, organizer_approved_by=NULL, attempts=attempts+1,
+                         declared_amount=$5, transfer_date=$6, match_result=$7 WHERE installment_id=$1`,
+          [id, input.reference ?? null, input.methodKind, input.receiptFileId, input.amount ?? null, input.transferDate ?? null, JSON.stringify(match)]);
       } else {
-        await c.query(`INSERT INTO installment_settlements (installment_id, payer_declared_at, payer_reference, method_kind, receipt_file_id) VALUES ($1, now(), $2, $3, $4)`,
-          [id, input.reference ?? null, input.methodKind, input.receiptFileId]);
+        await c.query(`INSERT INTO installment_settlements (installment_id, payer_declared_at, payer_reference, method_kind, receipt_file_id, declared_amount, transfer_date, match_result)
+                       VALUES ($1, now(), $2, $3, $4, $5, $6, $7)`,
+          [id, input.reference ?? null, input.methodKind, input.receiptFileId, input.amount ?? null, input.transferDate ?? null, JSON.stringify(match)]);
       }
       await c.query(`UPDATE gamiya_installments SET status='DUE' WHERE id=$1 AND status <> 'PAID'`, [id]);
       await this.event(c, id, userId, r.has_settlement ? 'REDECLARED' : 'DECLARED', { receiptFileId: input.receiptFileId, note: input.reference ?? null });
       const next = r.needs_organizer ? 'بانتظار اعتماد المنظم' : 'بانتظار تأكيد المستلم';
-      await this.chat.post(c, { gamiyaId: r.gamiya_id, kind: 'SYSTEM', body: `سجّل ${r.payer_name} تحويل ${money(r)} إلى ${r.recipient_name} (الدورة ${r.cycle_index}) وأرفق الإيصال. ${next}.`, refEntity: 'installment', refId: id });
+      const flagged = m.checks.filter((x) => !x.ok).length;
+      const matchLine = flagged ? ` المطابقة التلقائية: ${flagged} ملاحظة للمراجعة.` : ' المطابقة التلقائية: كل الفحوص سليمة.';
+      await this.chat.post(c, { gamiyaId: r.gamiya_id, kind: 'SYSTEM', body: `سجّل ${r.payer_name} تحويل ${money(r)} إلى ${r.recipient_name} (الدورة ${r.cycle_index}) وأرفق الإيصال. ${next}.${matchLine}`, refEntity: 'installment', refId: id });
       await this.chat.notify(c, [r.needs_organizer ? r.organizer_user_id : r.recipient_user_id], { gamiyaId: r.gamiya_id, kind: 'ACTION_NEEDED', body: `${r.payer_name}: تحويل ${money(r)} ${next}` });
-      await this.audit.log(c, { actorId: userId, action: 'PAYMENT_DECLARED', entity: 'installment', entityId: id, correlationId: cid, details: { method: input.methodKind } });
+      await this.audit.log(c, { actorId: userId, action: 'PAYMENT_DECLARED', entity: 'installment', entityId: id, correlationId: cid, details: { method: input.methodKind, matchScore: m.score } });
       return view(await this.load(c, id), userId);
     });
   }
