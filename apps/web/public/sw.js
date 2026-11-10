@@ -3,7 +3,7 @@
  * It caches ONLY the app shell (HTML, hashed JS/CSS, icons, manifest). It never caches or intercepts
  * /api/ or /files/ — balances, receipts, notes and chat always come from the server.
  */
-const VERSION = 'sg-shell-v3';
+const VERSION = 'sg-shell-v4';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

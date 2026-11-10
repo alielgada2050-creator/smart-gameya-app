@@ -1,0 +1,83 @@
+# Builds the Jamiyati apps for phones and tablets from apps/web.
+#   Android: installable APK (any phone/tablet) + AAB for Google Play (signed when the upload-key secrets exist).
+#   iOS/iPadOS: simulator build to prove the project compiles; a signed .ipa needs Apple certificates (see docs/MOBILE_APPS.md).
+# Required repository variable: API_ORIGIN (e.g. https://app.example.sa). Optional secrets: ANDROID_KEYSTORE_BASE64,
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD.
+name: mobile-apps
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+    paths: ['apps/web/**', 'apps/mobile/**', '.github/workflows/mobile.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  web-native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build the app UI for the device
+        env: { VITE_API_ORIGIN: '${{ vars.API_ORIGIN }}' }
+        run: npm run build:native -w @smart-gameya/web
+      - uses: actions/upload-artifact@v4
+        with: { name: web-native, path: apps/web/dist-native, retention-days: 3 }
+
+  android:
+    needs: web-native
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 0.8.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: web-native, path: apps/web/dist-native }
+      - name: Copy UI and plugins into the Android project
+        working-directory: apps/mobile
+        run: npx cap sync android
+      - name: Restore upload key (optional)
+        if: ${{ env.HAS_KEY == 'true' }}
+        env: { KS: '${{ secrets.ANDROID_KEYSTORE_BASE64 }}' }
+        run: echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks" && echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+      - name: Build APK and AAB
+        working-directory: apps/mobile/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug assembleRelease bundleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jamiyati-android-${{ github.run_number }}
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/*.apk
+            apps/mobile/android/app/build/outputs/apk/release/*.apk
+            apps/mobile/android/app/build/outputs/bundle/release/*.aab
+
+  ios:
+    needs: web-native
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: web-native, path: apps/web/dist-native }
+      - name: Copy UI and plugins into the iOS project
+        working-directory: apps/mobile
+        run: npx cap sync ios
+      - name: Build for the iPhone/iPad simulator (no signing)
+        working-directory: apps/mobile/ios/App
+        run: xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -20

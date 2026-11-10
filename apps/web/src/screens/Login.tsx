@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { isNative } from '../platform.ts';
 import { api, googleSignIn, normalizePhone, requestCode, verifyCode, type SessionUser } from '../api.ts';
 import { ErrorNote, Figure } from '../components.tsx';
 import { useT } from '../i18n.ts';
@@ -38,7 +39,8 @@ export function Login({ onSignedIn }: { onSignedIn: (u: SessionUser) => void }) 
   const [localError, setLocalError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { api<any>('GET', '/config/public').then((c) => setGoogleClientId(c.googleClientId)).catch(() => {}); }, []);
+  // Google blocks sign-in inside embedded app web views, so the native apps use mobile OTP only.
+  useEffect(() => { if (!isNative) api<any>('GET', '/config/public').then((c) => setGoogleClientId(c.googleClientId)).catch(() => {}); }, []);
 
   async function onGoogle(idToken: string) {
     setError(null);

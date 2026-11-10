@@ -9,6 +9,8 @@ export class ApiError extends Error {
   constructor(status: number, body: ApiErrorBody) { super(body.message); this.code = body.code; this.status = status; }
 }
 
+import { API_ORIGIN, presentFile } from './platform.ts';
+
 const RT_KEY = 'sg.refresh';
 const USER_KEY = 'sg.user';
 let accessToken: string | null = null;
@@ -42,7 +44,7 @@ async function refresh(): Promise<boolean> {
   const rt = store.get(RT_KEY);
   if (!rt) return false;
   refreshing ??= (async () => {
-    const r = await fetch('/api/v1/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }) });
+    const r = await fetch(`${API_ORIGIN}/api/v1/auth/refresh`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refreshToken: rt }) });
     if (!r.ok) { clearSession(); return false; }
     saveTokens(await r.json());
     return true;
@@ -52,7 +54,7 @@ async function refresh(): Promise<boolean> {
 
 export async function api<T = any>(method: 'GET' | 'POST', path: string, body?: unknown, retry = true): Promise<T> {
   if (!accessToken && hasSession() && !isPublicAuth(path)) await refresh();
-  const res = await fetch(`/api/v1${path}`, {
+  const res = await fetch(`${API_ORIGIN}/api/v1${path}`, {
     method,
     headers: { 'content-type': 'application/json', ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -70,7 +72,7 @@ export async function uploadFile(gamiyaId: string, purpose: 'RECEIPT' | 'PROMISS
     const fd = new FormData();
     fd.append('purpose', purpose);
     fd.append('file', file);
-    return fetch(`/api/v1/gamiyas/${gamiyaId}/files`, { method: 'POST', headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {}, body: fd });
+    return fetch(`${API_ORIGIN}/api/v1/gamiyas/${gamiyaId}/files`, { method: 'POST', headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {}, body: fd });
   };
   let res = await send();
   if (res.status === 401 && (await refresh())) res = await send();
@@ -79,15 +81,14 @@ export async function uploadFile(gamiyaId: string, purpose: 'RECEIPT' | 'PROMISS
   return data;
 }
 
-/** Open a protected file (receipt / note) in a new tab via a short-lived blob URL; the bearer token never goes in a URL. */
+/** Open a protected file (receipt / note). The bearer token never goes in a URL; see presentFile for each platform. */
 export async function openFile(fileId: string) {
   if (!accessToken && hasSession()) await refresh();
-  let res = await fetch(`/api/v1/files/${fileId}`, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
-  if (res.status === 401 && (await refresh())) res = await fetch(`/api/v1/files/${fileId}`, { headers: { authorization: `Bearer ${accessToken}` } });
+  let res = await fetch(`${API_ORIGIN}/api/v1/files/${fileId}`, { headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {} });
+  if (res.status === 401 && (await refresh())) res = await fetch(`${API_ORIGIN}/api/v1/files/${fileId}`, { headers: { authorization: `Bearer ${accessToken}` } });
   if (!res.ok) throw new ApiError(res.status, { code: 'FILE', message: res.statusText });
-  const url = URL.createObjectURL(await res.blob());
-  window.open(url, '_blank', 'noopener');
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  const blob = await res.blob();
+  await presentFile(blob, `${fileId}.${blob.type === 'application/pdf' ? 'pdf' : blob.type.split('/')[1] ?? 'bin'}`);
 }
 
 export async function googleSignIn(idToken: string) {

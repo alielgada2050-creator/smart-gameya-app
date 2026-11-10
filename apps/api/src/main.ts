@@ -8,6 +8,15 @@ export async function createApp(config = loadConfig()) {
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.enableShutdownHooks();
+  // The native apps call the API cross-origin with a bearer token (no cookies), so credentials stay off.
+  const origins = config.corsOrigins ?? [];
+  if (origins.length) {
+    app.enableCors({
+      origin: (origin: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => cb(null, !origin || origins.includes(origin)),
+      methods: ['GET', 'POST'], allowedHeaders: ['content-type', 'authorization', 'x-correlation-id'], exposedHeaders: ['x-correlation-id'],
+      credentials: false, maxAge: 600,
+    });
+  }
   const web = process.env.WEB_DIST;
   if (web) {
     const express = (await import('express')).default;
@@ -15,7 +24,7 @@ export async function createApp(config = loadConfig()) {
     const http = app.getHttpAdapter().getInstance();
     http.use((_req: any, res: any, next: any) => {
       // Google Identity Services (sign-in button) is the only third-party script, and only from accounts.google.com.
-      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'");
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src https://accounts.google.com/gsi/; connect-src 'self' https://accounts.google.com/gsi/; style-src 'self' https://accounts.google.com/gsi/style; font-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'");
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Referrer-Policy', 'no-referrer');
       res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');

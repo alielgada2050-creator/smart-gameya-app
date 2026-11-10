@@ -68,8 +68,9 @@ export function Shell({ nav, current, signedIn, userName, skin, setSkin, toggleL
     if (!signedIn) return;
     const load = () => api('GET', '/me/notifications').then(setNotes).catch(() => {});
     load();
+    addEventListener('sg:resume', load);
     const h = setInterval(load, 60_000);
-    return () => clearInterval(h);
+    return () => { clearInterval(h); removeEventListener('sg:resume', load); };
   }, [signedIn, current]);
 
   const brand = <a className="brand" href="#/"><img src="/icon.svg" alt="" />{t.appName}</a>;

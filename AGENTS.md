@@ -11,13 +11,13 @@
 | 05 | Database Architect | infrastructure/database | migration 001 + اختبارات | ✅ |
 | 06 | Backend | apps/api | Auth، الجمعيات، القرعة، الأقساط | ✅ جزئي (Phase 2–3) |
 | 07 | Frontend | apps/web | كل رحلات العضو والمنظم ومراجع المنصة | ✅ |
-| 08 | Mobile | apps/mobile (Flutter) | — | Phase 7 |
+| 08 | Mobile | apps/mobile (Capacitor 8) | أندرويد + iPhone/iPad من نفس الواجهة، `docs/MOBILE_APPS.md` (ADR-015) | ✅ بناء عبر CI |
 | 09 | AI Engineer | packages/ai-core | سلسلة مزودين مجانية، حارس الأرقام، مستشار الادخار | ✅ جزئي (Phase 5) |
 | 10 | Financial Systems | packages/financial-core | المال، الجدولة، الرسوم، القرعة، الدفتر | ✅ مختبر |
 | 11 | Cybersecurity | SECURITY.md | نموذج تهديد أولي | Phase 1b |
 | 12 | QA Automation | tests/, */test | 18 مالية + 8 ذكاء + 9+6 SQL + 34 API + رحلة متصفح (3 أعضاء + مراجع) | ✅ |
 | 13 | Integration | packages/financial-core/src/transfer.ts, apps/api/src/ordering | تحويلات ذكية دون حيازة أموال + ترتيب بالاتفاق/الأولوية (ADR-013/014) | ✅ |
-| 14 | DevOps | infrastructure/, .github/ | — | Phase 2 |
+| 14 | DevOps | infrastructure/, .github/ | `mobile.yml` (APK/AAB/iOS) + `ci.yml` | ✅ جزئي |
 | 15 | Documentation | docs/ | التقارير | ✅ |
 
 ## بروتوكول التسليم

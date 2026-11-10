@@ -3,6 +3,7 @@ import { api, openFile, uploadFile } from '../api.ts';
 import { EmptyState, ErrorNote, Loading, Pill, useLoad } from '../components.tsx';
 import { date, money, useT } from '../i18n.ts';
 import { Icon } from '../shell/icons.tsx';
+import { tick } from '../platform.ts';
 
 /** Three-step progress: sender declared → organizer approved (when required) → recipient confirmed. */
 function Steps({ status, needsOrganizer }: { status: string; needsOrganizer: boolean }) {
@@ -142,7 +143,7 @@ export function Obligations({ gamiyaId, onChange }: { gamiyaId?: string; onChang
   const toPay = scope(ob.data.toPay).filter((i: any) => gamiyaId || i.status !== 'SCHEDULED');
   const toApprove = scope(ob.data.toApprove);
   const toConfirm = scope(ob.data.toConfirm);
-  const done = (m: string) => { setMsg(m); setOpen(null); ob.reload(); onChange?.(); };
+  const done = (m: string) => { setMsg(m); setOpen(null); ob.reload(); onChange?.(); void tick(); };
 
   async function act(id: string, path: string, body: object | undefined, m: string) {
     setBusy(id); setError(null); setMsg('');

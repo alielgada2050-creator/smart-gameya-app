@@ -1,0 +1,17 @@
+# Unit tests that need no database run on every push; the full API/browser suites run locally (scripts/test-*.sh).
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test -w @smart-gameya/financial-core
+      - run: npm test -w @smart-gameya/ai-core
+      - run: cd apps/web && npx tsc --noEmit -p tsconfig.json && npx vite build
+      - run: cd apps/api && npx tsc -p tsconfig.json

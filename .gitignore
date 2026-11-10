@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env
 tests/e2e/__pycache__/
+dist-native/

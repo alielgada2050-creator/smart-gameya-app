@@ -15,6 +15,7 @@ export interface AppConfig {
   google?: { clientId: string; jwksUrl: string; issuers: string[] }; // Sign in with Google (ID token)
   platformAdminPhones?: string[]; // bootstrap platform admins (E.164); everyone else is a normal user
   remindersEveryMinutes?: number; // 0 = only on demand
+  corsOrigins?: string[]; // origins of the Android/iOS apps (and any separate web front end) allowed to call the API
 }
 
 function required(name: string): string {
@@ -54,6 +55,8 @@ export function loadConfig(): AppConfig {
     google: clientId ? { clientId, jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs', issuers: ['accounts.google.com', 'https://accounts.google.com'] } : undefined,
     platformAdminPhones: (process.env.PLATFORM_ADMIN_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     remindersEveryMinutes: Number(process.env.REMINDERS_EVERY_MINUTES ?? 60),
+    // Capacitor serves the bundled app from https://localhost (Android) and capacitor://localhost (iOS).
+    corsOrigins: (process.env.CORS_ORIGINS ?? 'https://localhost,capacitor://localhost').split(',').map((s) => s.trim()).filter(Boolean),
   };
 }
 

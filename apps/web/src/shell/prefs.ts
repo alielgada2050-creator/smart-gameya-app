@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { syncStatusBar } from '../platform.ts';
 
 /** Wathiq shell preferences: skin and language live on <html> and are broadcast with wq:* events. */
 export type Skin = 'auto' | 'light' | 'dark' | 'bright';
@@ -13,7 +14,7 @@ export function applySkin(skin: Skin) {
 
 export function useSkin(): [Skin, (s: Skin) => void] {
   const [skin, setSkin] = useState<Skin>(() => (read('wq.skin') as Skin) || 'auto');
-  useEffect(() => { applySkin(skin); dispatchEvent(new CustomEvent('wq:skin', { detail: skin })); }, [skin]);
+  useEffect(() => { applySkin(skin); dispatchEvent(new CustomEvent('wq:skin', { detail: skin })); void syncStatusBar(); }, [skin]);
   return [skin, setSkin];
 }
 

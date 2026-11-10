@@ -1,0 +1,29 @@
+{
+  "name": "@smart-gameya/mobile",
+  "version": "0.8.0",
+  "private": true,
+  "type": "module",
+  "description": "Jamiyati native shells for Android and iOS (phones and tablets), built from apps/web with Capacitor.",
+  "scripts": {
+    "build:web": "npm run build:native -w @smart-gameya/web",
+    "sync": "npm run build:web && cap sync",
+    "assets": "capacitor-assets generate --ios --android --iconBackgroundColor '#0F172A' --iconBackgroundColorDark '#0F172A' --splashBackgroundColor '#F8FAFC' --splashBackgroundColorDark '#0F172A'",
+    "android:debug": "cd android && ./gradlew assembleDebug",
+    "android:release": "cd android && ./gradlew bundleRelease assembleRelease"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  }
+}

@@ -67,6 +67,25 @@ export function App() {
         onSignOut={async () => { await logout(); setUser(null); setRole('NONE'); location.hash = '/'; }}>
         {screen}
       </Shell>
+      <ImageViewer label={t.closeViewer} />
     </I18n.Provider>
+  );
+}
+
+/** In-app receipt viewer (native apps open images here instead of a new browser tab). */
+function ImageViewer({ label }: { label: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setSrc((e as CustomEvent<string>).detail);
+    addEventListener('sg:view-image', on);
+    return () => removeEventListener('sg:view-image', on);
+  }, []);
+  if (!src) return null;
+  const close = () => { URL.revokeObjectURL(src); setSrc(null); };
+  return (
+    <div className="viewer" role="dialog" aria-modal="true" aria-label={label} onClick={close}>
+      <img src={src} alt="" />
+      <button className="btn btn-secondary" onClick={close} autoFocus>{label}</button>
+    </div>
   );
 }

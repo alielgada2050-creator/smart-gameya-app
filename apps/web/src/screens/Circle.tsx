@@ -6,6 +6,7 @@ import { Icon } from '../shell/icons.tsx';
 import { Obligations } from './Obligations.tsx';
 import { Chat } from './Chat.tsx';
 import { PayoutOrder } from './Ordering.tsx';
+import { WEB_ORIGIN, isNative, shareLink } from '../platform.ts';
 
 export function Circle({ id, tab }: { id: string; tab: string }) {
   const { t, lang } = useT();
@@ -212,7 +213,7 @@ function Invite({ id, remaining }: { id: string; remaining: number }) {
     setError(null);
     try {
       const r = await api<any>('POST', `/gamiyas/${id}/invitations`, { maxUses: Math.max(1, remaining), expiresInHours: 72 });
-      setLink(`${location.origin}/#/join/${r.code}`);
+      setLink(`${WEB_ORIGIN}/#/join/${r.code}`);
     } catch (e) { setError(e); }
   }
   return (
@@ -223,7 +224,10 @@ function Invite({ id, remaining }: { id: string; remaining: number }) {
           <p>{t.inviteLink}</p>
           <p className="code" data-testid="invite-link">{link}</p>
           <p className="muted small">{t.inviteUses(Math.max(1, remaining))}</p>
-          <button className="btn btn-secondary" onClick={() => navigator.clipboard?.writeText(link).then(() => setCopied(true)).catch(() => {})}><Icon name="copy" />{copied ? t.copied : t.copy}</button>
+          <div className="row-start">
+            <button className="btn btn-secondary" onClick={() => navigator.clipboard?.writeText(link).then(() => setCopied(true)).catch(() => {})}><Icon name="copy" />{copied ? t.copied : t.copy}</button>
+            {(isNative || 'share' in navigator) && <button className="btn btn-primary" onClick={() => shareLink(t.invite, link)}>{t.shareInvite}</button>}
+          </div>
         </>
       )}
       <ErrorNote error={error} />

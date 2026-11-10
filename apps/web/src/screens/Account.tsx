@@ -5,6 +5,7 @@ import { useT } from '../i18n.ts';
 import { readLogos, saveLogos, type OrgLogo } from '../shell/prefs.ts';
 import { useInstall } from '../shell/Shell.tsx';
 import { Icon } from '../shell/icons.tsx';
+import { isNative } from '../platform.ts';
 
 export function Account() {
   const { t } = useT();
@@ -23,7 +24,7 @@ export function Account() {
         <PayoutMethods />
       </div>
       <div className="stack">
-        <AppOnDevices />
+        {!isNative && <AppOnDevices />}
         <BusinessIdentity />
       </div>
     </div>
