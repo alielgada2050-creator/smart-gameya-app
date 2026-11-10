@@ -6,7 +6,7 @@ import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/main.ts';
 import { ProviderChain } from '../../../packages/ai-core/src/providers.ts';
-import { testConfigExtras, uploadFile, PNG } from './helpers.ts';
+import { testConfigExtras, uploadFile, PNG, withPledge } from './helpers.ts';
 
 /** Owner request 2026-11-10: payout order by agreement or priority (every member approves) + smart transfers without holding funds. */
 let app: INestApplication, http: any;
@@ -16,10 +16,11 @@ const config: any = {
   exposeOtpInResponse: true, isProduction: false, ai: { chain: new ProviderChain([]), skipped: [] }, ...testConfigExtras(),
 };
 interface Person { name: string; ip: string; token: string; id: string }
-const api = (p: Person, method: 'get' | 'post', url: string, body?: object) => {
+const rawApi = (p: Person, method: 'get' | 'post', url: string, body?: object) => {
   const r = http[method](url).set('X-Forwarded-For', p.ip).set('Authorization', `Bearer ${p.token}`);
   return body ? r.send(body) : r;
 };
+const api = withPledge(rawApi) as typeof rawApi;
 async function login(name: string, phone: string): Promise<Person> {
   const ip = `10.7.0.${ipSeq++}`;
   const req = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', ip).send({ phone });

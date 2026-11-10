@@ -13,6 +13,8 @@ import { isPermutation, suggestOrder } from '../../../../packages/financial-core
 import { matchDeclaration, transferGuide, transferReference } from '../../../../packages/financial-core/src/transfer.ts';
 import { monthlyEquivalent, SAVINGS_POLICY, savingsFacts } from '../../../../packages/financial-core/src/savings.ts';
 import { narrate, type AdvisorFacts } from '../../../../packages/ai-core/src/advisor.ts';
+import { PLEDGE_VERSION, pledgeClauses, pledgeHash, pledgeText, signatureMatches, type PledgeTerms } from '../../../../packages/financial-core/src/pledge.ts';
+import { planCircle } from '../../../../packages/financial-core/src/planner.ts';
 import { seed, type DB } from './seed.ts';
 
 export class DemoError extends Error { constructor(public status: number, public code: string, message: string) { super(message); } }
@@ -21,7 +23,7 @@ const conflict = (code: string, m = code) => new DemoError(409, code, m);
 const forbidden = (m = 'forbidden') => new DemoError(403, 'FORBIDDEN', m);
 const notFound = (what = 'resource') => new DemoError(404, 'NOT_FOUND', `${what} not found`);
 
-const KEY = 'sg.demo.v1';
+const KEY = 'sg.demo.v2';
 let db: DB;
 export function load(): DB {
   try { const raw = localStorage.getItem(KEY); if (raw) { db = JSON.parse(raw); return db; } } catch { /* storage unavailable */ }
@@ -51,20 +53,24 @@ function notify(userIds: string[], n: { gamiyaId?: string; kind: string; body: s
 // ---------- circles ----------
 function membership(gamiyaId: string, userId: string) {
   const g = db.circles.find((c) => c.id === gamiyaId);
-  const m = g && db.members.find((x) => x.gamiyaId === gamiyaId && x.userId === userId);
+  const m = g && db.members.find((x) => x.gamiyaId === gamiyaId && x.userId === userId && x.status !== 'WITHDRAWN');
   if (!g || !m) throw notFound('gamiya');
   return { g, m };
 }
-const membersOf = (gamiyaId: string) => db.members.filter((m) => m.gamiyaId === gamiyaId);
+const membersOf = (gamiyaId: string) => db.members.filter((m) => m.gamiyaId === gamiyaId && m.status !== 'WITHDRAWN');
+const mstatus = (m: { status?: string }) => m.status ?? 'ACTIVE';
 const manager = (gamiyaId: string) => membersOf(gamiyaId).find((m) => m.role === 'MANAGER')!;
 function schedOf(g: DB['circles'][number]) {
   return generateSchedule({ members: g.memberCount, contribution: parseMoney(g.contribution, g.currency), currency: g.currency, frequency: g.frequency as Frequency, startDate: g.startDate });
 }
 function summary(g: DB['circles'][number], userId: string) {
-  const m = db.members.find((x) => x.gamiyaId === g.id && x.userId === userId);
+  const m = db.members.find((x) => x.gamiyaId === g.id && x.userId === userId && x.status !== 'WITHDRAWN');
+  const myCycle = m && db.cycles.find((c) => c.gamiyaId === g.id && c.recipientMemberId === m.id);
   return {
     id: g.id, name: g.name, currency: g.currency, country: g.country, tier: g.tier, platformApproval: g.platformApproval, frequency: g.frequency, contribution: g.contribution,
-    memberCount: g.memberCount, joined: membersOf(g.id).length, startDate: g.startDate, status: g.status, myRole: m?.role ?? null, myPayoutPosition: m?.payoutPosition ?? null,
+    memberCount: g.memberCount, joined: membersOf(g.id).length, startDate: g.startDate, status: g.status, category: g.category ?? 'OTHER',
+    myRole: m?.role ?? null, myPayoutPosition: m?.payoutPosition ?? null, myMemberStatus: m ? mstatus(m) : null,
+    potPerCycle: dec(parseMoney(g.contribution, g.currency) * BigInt(g.memberCount), g.currency), myPayoutDate: myCycle?.dueDate ?? null,
   };
 }
 function details(gamiyaId: string, userId: string) {
@@ -77,8 +83,9 @@ function details(gamiyaId: string, userId: string) {
       const n = db.notes.find((nn) => nn.memberId === x.id);
       return { memberId: x.id, status: n?.status ?? 'MISSING', reference: x.id === m.id || m.role === 'MANAGER' ? n?.reference ?? null : null };
     }) : null,
-    graceDays: g.graceDays, orderingMethod: g.ordering, potPerCycle: dec(s.potPerCycle, g.currency), endDate: s.endDate,
-    members: ms.map((x) => ({ memberId: x.id, fullName: user(x.userId).fullName, role: x.role, payoutPosition: x.payoutPosition, status: 'ACTIVE' })),
+    graceDays: g.graceDays, orderingMethod: g.ordering, potPerCycle: dec(s.potPerCycle, g.currency), endDate: s.endDate, termsVersion: g.termsVersion ?? 1,
+    members: ms.map((x) => ({ memberId: x.id, fullName: user(x.userId).fullName, role: x.role, payoutPosition: x.payoutPosition, status: mstatus(x),
+      pledged: db.pledges.some((p) => p.userId === x.userId && p.gamiyaId === g.id && p.termsVersion === (g.termsVersion ?? 1)) })),
   };
 }
 function assess(input: any) {
@@ -175,7 +182,7 @@ function orderState(gamiyaId: string, me: string) {
   const dates = schedOf(g).cycles.map((c) => c.dueDate);
   const votes = open ? db.votes.filter((v) => v.proposalId === open.id) : [];
   return {
-    status: g.status, orderingMethod: g.ordering, memberCount: g.memberCount, isOrganizer: isOrg, myMemberId: m.id, lotteryStarted: !!db.lottery[gamiyaId],
+    status: g.status, orderingMethod: g.ordering, memberCount: g.memberCount, isOrganizer: isOrg, myMemberId: m.id, lotteryStarted: !!db.lottery[gamiyaId], cycleDates: dates,
     requests: ms.map((x) => {
       const p = db.priority[x.id]; const mine = x.id === m.id;
       return { memberId: x.id, fullName: user(x.userId).fullName, declared: !!p, preference: p?.preference ?? 'NONE', neededBy: p?.neededBy ?? null,
@@ -304,10 +311,12 @@ on('POST', '/gamiyas', ({ me, body }) => {
   if (!a.tier.ok) throw bad('INVALID_CIRCLE');
   const g = { id: uuid(), name: String(body.name).trim(), currency: a.currency, country: body.country, frequency: body.frequency, contribution: dec(a.contribution, a.currency),
     memberCount: body.memberCount, startDate: body.startDate, graceDays: body.graceDays ?? 3, status: 'RECRUITING', tier: a.tier.tier,
-    platformApproval: a.tier.requiresPlatformApproval ? 'AWAITING_NOTES' : 'NOT_REQUIRED', platformReviewNote: null, ordering: 'LOTTERY', createdAt: now() };
+    platformApproval: a.tier.requiresPlatformApproval ? 'AWAITING_NOTES' : 'NOT_REQUIRED', platformReviewNote: null, ordering: 'LOTTERY', createdAt: now(),
+    category: body.category ?? 'OTHER', termsVersion: 1 };
+  signPledge(me, g.id, pledgeTerms(g, user(me).fullName, user(me).fullName), body.pledge);
   db.circles.push(g);
   post(g.id, 'SYSTEM', `أُنشئت الجمعية (${tierAr[g.tier]}). القبض لكل دورة ${dec(a.schedule.potPerCycle, a.currency)} ${a.currency}.`, null, 'gamiya', g.id);
-  db.members.push({ id: uuid(), gamiyaId: g.id, userId: me, role: 'MANAGER', payoutPosition: null, joinedAt: now() });
+  db.members.push({ id: uuid(), gamiyaId: g.id, userId: me, role: 'MANAGER', payoutPosition: null, joinedAt: now(), status: 'ACTIVE' });
   return details(g.id, me);
 });
 on('GET', '/gamiyas/:id', ({ me, params }) => details(params[0], me));
@@ -319,22 +328,207 @@ on('POST', '/gamiyas/:id/invitations', ({ me, params, body }) => {
   db.invitations.push({ code, gamiyaId: g.id, maxUses: body.maxUses ?? g.memberCount - 1, uses: 0, expiresAt: new Date(Date.now() + (body.expiresInHours ?? 72) * 3600e3).toISOString() });
   return { code, maxUses: body.maxUses ?? g.memberCount - 1, expiresInHours: body.expiresInHours ?? 72 };
 });
-on('POST', '/invitations/:code/accept', ({ me, params }) => {
+on('POST', '/invitations/:code/accept', ({ me, params, body }) => {
   const inv = db.invitations.find((x) => x.code === params[0]);
   if (!inv || inv.uses >= inv.maxUses || inv.expiresAt < now()) throw notFound('invitation');
   const g = db.circles.find((c) => c.id === inv.gamiyaId)!;
   if (g.status !== 'RECRUITING') throw conflict('NOT_RECRUITING', 'circle is not accepting members');
-  if (db.members.some((m) => m.gamiyaId === g.id && m.userId === me)) throw conflict('ALREADY_MEMBER', 'you are already a member of this circle');
+  const prev = db.members.find((m) => m.gamiyaId === g.id && m.userId === me);
+  if (prev && prev.status !== 'WITHDRAWN') throw conflict('ALREADY_MEMBER', 'you are already a member of this circle');
   const count = membersOf(g.id).length;
   if (count >= g.memberCount) throw conflict('CIRCLE_FULL', 'circle is full');
-  db.members.push({ id: uuid(), gamiyaId: g.id, userId: me, role: 'MEMBER', payoutPosition: null, joinedAt: now() });
+  signPledge(me, g.id, pledgeTerms(g, user(manager(g.id).userId).fullName, user(me).fullName), body.pledge);
+  if (prev) Object.assign(prev, { status: 'ACTIVE', joinedAt: now(), payoutPosition: null });
+  else db.members.push({ id: uuid(), gamiyaId: g.id, userId: me, role: 'MEMBER', payoutPosition: null, joinedAt: now(), status: 'ACTIVE' });
   inv.uses++;
-  post(g.id, 'SYSTEM', `انضم ${user(me).fullName} إلى الجمعية ووافق على الاتفاقية.`, null, 'member', me);
+  post(g.id, 'SYSTEM', `انضم ${user(me).fullName} إلى الجمعية ووقّع إقرار وتعهّد السداد.`, null, 'member', me);
   if (count + 1 === g.memberCount) {
     g.status = 'LOCKED';
     post(g.id, 'SYSTEM', g.tier === 'LARGE' ? 'اكتمل العدد. جمعية كبيرة: على كل عضو رفع سند لأمر لصالح المنظم، ثم يطلب المنظم اعتماد إدارة المنصة قبل القرعة.' : 'اكتمل العدد. يمكن للمنظم تجهيز القرعة الآن.', null, 'gamiya', g.id);
   }
   return details(g.id, me);
+});
+
+// ---------- pledge, editing, membership (mirrors apps/api/src/gamiyas/membership.ts) ----------
+type G = DB['circles'][number];
+function pledgeTerms(g: Pick<G, 'name' | 'currency' | 'contribution' | 'memberCount' | 'frequency' | 'startDate'> & { termsVersion?: number }, organizerName: string, memberName: string): PledgeTerms {
+  const contribution = parseMoney(String(g.contribution), g.currency);
+  const s = generateSchedule({ members: g.memberCount, contribution, currency: g.currency, frequency: g.frequency as Frequency, startDate: g.startDate });
+  return { circleName: g.name, organizerName, memberName, currency: g.currency, contribution: dec(contribution, g.currency), memberCount: g.memberCount,
+    frequency: g.frequency as PledgeTerms['frequency'], installments: g.memberCount - 1, startDate: g.startDate, endDate: s.endDate,
+    potPerCycle: dec(s.potPerCycle, g.currency), totalCommitment: dec(contribution * BigInt(g.memberCount - 1), g.currency), termsVersion: g.termsVersion ?? 1 };
+}
+const pledgeView = (t: PledgeTerms) => ({ pledgeVersion: PLEDGE_VERSION, terms: t, clauses: pledgeClauses(t), text: pledgeText(t), textSha256: pledgeHash(t) });
+function signPledge(userId: string, gamiyaId: string, t: PledgeTerms, p: any) {
+  if (!p) throw bad('PLEDGE_REQUIRED', 'read and sign the payment pledge first');
+  if (p.textSha256 !== pledgeHash(t)) throw conflict('PLEDGE_OUTDATED', 'the circle terms changed; read the pledge again');
+  if (!signatureMatches(String(p.typedName ?? ''), t.memberName)) throw bad('SIGNATURE_MISMATCH', 'type your full name exactly as registered');
+  if (db.pledges.some((x) => x.userId === userId && x.gamiyaId === gamiyaId && x.termsVersion === t.termsVersion)) return;
+  db.pledges.push({ id: uuid(), userId, gamiyaId, termsVersion: t.termsVersion, pledgeVersion: PLEDGE_VERSION, textSha256: pledgeHash(t), typedName: String(p.typedName).trim(), terms: t, signedAt: now() });
+}
+function assertChangeable(g: G) {
+  if (!['RECRUITING', 'LOCKED'].includes(g.status)) throw conflict('ALREADY_STARTED', 'the circle has started; its terms can no longer change');
+  if (db.lottery[g.id]) throw conflict('LOTTERY_PREPARED', 'a draw is already prepared for this circle');
+  if (db.proposals.some((p) => p.gamiyaId === g.id && p.status === 'OPEN')) throw conflict('PROPOSAL_OPEN', 'an order proposal is open; withdraw it first');
+}
+function settleStatus(g: G) {
+  const ms = membersOf(g.id);
+  const next = ms.length === g.memberCount && ms.every((m) => mstatus(m) === 'ACTIVE') ? 'LOCKED' : 'RECRUITING';
+  if (next !== g.status) { g.status = next; if (next === 'LOCKED') post(g.id, 'SYSTEM', 'اكتمل العدد ووقّع الجميع على الشروط الحالية. يمكن ترتيب القبض أو تجهيز القرعة الآن.', null, 'gamiya', g.id); }
+}
+function merged(g: G, b: any) {
+  return { name: b.name ?? g.name, category: b.category ?? g.category ?? 'OTHER', contribution: b.contribution ?? g.contribution, memberCount: b.memberCount ?? g.memberCount,
+    frequency: b.frequency ?? g.frequency, startDate: b.startDate ?? g.startDate };
+}
+const moneyChanged = (g: G, n: ReturnType<typeof merged>) => parseMoney(String(n.contribution), g.currency) !== parseMoney(g.contribution, g.currency)
+  || n.memberCount !== g.memberCount || n.frequency !== g.frequency || n.startDate !== g.startDate;
+
+on('POST', '/gamiyas/pledge-preview', ({ me, body }) => {
+  const a = assess(body);
+  return pledgeView(pledgeTerms({ name: String(body.name ?? ''), currency: a.currency, contribution: dec(a.contribution, a.currency), memberCount: body.memberCount, frequency: body.frequency, startDate: body.startDate }, user(me).fullName, user(me).fullName));
+});
+on('GET', '/gamiyas/:id/pledge', ({ me, params }) => {
+  const { g } = membership(params[0], me);
+  const signed = db.pledges.find((p) => p.userId === me && p.gamiyaId === g.id && p.termsVersion === (g.termsVersion ?? 1));
+  return { ...pledgeView(pledgeTerms(g, user(manager(g.id).userId).fullName, user(me).fullName)), signedAt: signed?.signedAt ?? null };
+});
+on('GET', '/invitations/:code', ({ me, params }) => {
+  const inv = db.invitations.find((x) => x.code === params[0]);
+  const g = inv && db.circles.find((c) => c.id === inv.gamiyaId);
+  if (!inv || !g || inv.uses >= inv.maxUses || inv.expiresAt < now() || g.status !== 'RECRUITING') throw notFound('invitation');
+  const t = pledgeTerms(g, user(manager(g.id).userId).fullName, user(me).fullName);
+  const mine = db.members.find((m) => m.gamiyaId === g.id && m.userId === me);
+  return {
+    circle: { name: g.name, organizerName: t.organizerName, category: g.category ?? 'OTHER', tier: g.tier, currency: g.currency, contribution: t.contribution, memberCount: g.memberCount,
+      joined: membersOf(g.id).length, frequency: g.frequency, startDate: g.startDate, endDate: t.endDate, potPerCycle: t.potPerCycle },
+    alreadyMember: !!mine && mine.status !== 'WITHDRAWN', pledge: pledgeView(t),
+  };
+});
+on('POST', '/gamiyas/:id/edit/preview', ({ me, params, body }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role !== 'MANAGER') throw forbidden('only the circle manager can do this');
+  const n = merged(g, body);
+  const a = assess({ ...n, country: g.country });
+  const changed = moneyChanged(g, n);
+  const t = pledgeTerms({ ...n, currency: g.currency, termsVersion: (g.termsVersion ?? 1) + (changed ? 1 : 0) }, user(me).fullName, user(me).fullName);
+  return { moneyChanged: changed, seatsTaken: membersOf(g.id).length, tier: a.tier.ok ? a.tier.tier : null, membersToReconfirm: changed ? membersOf(g.id).length - 1 : 0,
+    requiresPlatformApproval: a.tier.ok ? a.tier.requiresPlatformApproval : false, pledge: changed ? pledgeView(t) : null, terms: t };
+});
+on('POST', '/gamiyas/:id/edit', ({ me, params, body }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role !== 'MANAGER') throw forbidden('only the circle manager can do this');
+  assertChangeable(g);
+  const n = merged(g, body);
+  const a = assess({ ...n, country: g.country });
+  if (!a.tier.ok) throw bad('INVALID_CIRCLE');
+  if (n.startDate <= today()) throw bad('INVALID_CIRCLE', 'start date must be in the future');
+  const taken = membersOf(g.id).length;
+  if (n.memberCount < taken) throw conflict('BELOW_JOINED', `${taken} members have already joined; remove members first or keep at least ${taken}`);
+  const changed = moneyChanged(g, n);
+  const changes: string[] = [];
+  if (n.name !== g.name) changes.push(`الاسم: «${n.name}»`);
+  if (n.category !== (g.category ?? 'OTHER')) changes.push('نوع الجمعية');
+  if (parseMoney(String(n.contribution), g.currency) !== parseMoney(g.contribution, g.currency)) changes.push(`القسط: ${n.contribution} ${g.currency}`);
+  if (n.memberCount !== g.memberCount) changes.push(`عدد الأعضاء: ${n.memberCount}`);
+  if (n.frequency !== g.frequency) changes.push('دورية الدفع');
+  if (n.startDate !== g.startDate) changes.push(`تاريخ البدء: ${n.startDate}`);
+  if (!changes.length) return details(g.id, me);
+  const version = (g.termsVersion ?? 1) + (changed ? 1 : 0);
+  if (changed) signPledge(me, g.id, pledgeTerms({ ...n, currency: g.currency, termsVersion: version }, user(me).fullName, user(me).fullName), body.pledge);
+  Object.assign(g, { name: n.name, category: n.category, contribution: dec(a.contribution, g.currency), memberCount: n.memberCount, frequency: n.frequency, startDate: n.startDate,
+    tier: a.tier.tier, termsVersion: version,
+    platformApproval: a.tier.requiresPlatformApproval ? (changed || g.tier !== 'LARGE' ? 'AWAITING_NOTES' : g.platformApproval) : 'NOT_REQUIRED' });
+  if (changed) {
+    for (const x of membersOf(g.id)) if (x.role !== 'MANAGER' && mstatus(x) === 'ACTIVE') x.status = 'PENDING_APPROVAL';
+    for (const nt of db.notes) if (nt.gamiyaId === g.id) nt.status = 'REJECTED';
+  }
+  post(g.id, 'SYSTEM', `عدّل المنظم الجمعية: ${changes.join('، ')}.` + (changed ? ' تغيّرت الشروط المالية: على كل عضو مراجعة الشروط الجديدة وتوقيع إقرار السداد مرة أخرى، أو الانسحاب دون أي التزام.' : ''), null, 'gamiya', g.id);
+  if (changed) notify(membersOf(g.id).filter((x) => mstatus(x) === 'PENDING_APPROVAL').map((x) => x.userId), { gamiyaId: g.id, kind: 'ACTION_NEEDED', body: `تغيّرت شروط «${g.name}»: راجعها ووقّع من جديد` });
+  settleStatus(g);
+  return details(g.id, me);
+});
+on('POST', '/gamiyas/:id/reconfirm', ({ me, params, body }) => {
+  const { g, m } = membership(params[0], me);
+  if (mstatus(m) !== 'PENDING_APPROVAL') throw conflict('NOTHING_TO_CONFIRM', 'you already agreed to the current terms');
+  signPledge(me, g.id, pledgeTerms(g, user(manager(g.id).userId).fullName, user(me).fullName), body.pledge);
+  m.status = 'ACTIVE';
+  post(g.id, 'SYSTEM', `وافق ${user(me).fullName} على الشروط الجديدة ووقّع إقرار السداد.`, null, 'member', me);
+  settleStatus(g);
+  return details(g.id, me);
+});
+function withdraw(g: G, x: DB['members'][number]) { x.status = 'WITHDRAWN'; x.payoutPosition = null; delete db.priority[x.id]; settleStatus(g); }
+on('POST', '/gamiyas/:id/leave', ({ me, params }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role === 'MANAGER') throw forbidden('the organizer cannot leave their own circle');
+  assertChangeable(g);
+  withdraw(g, m);
+  post(g.id, 'SYSTEM', `انسحب ${user(me).fullName} من الجمعية قبل بدئها، ولا التزام عليه.`, null, 'member', me);
+  notify([manager(g.id).userId], { gamiyaId: g.id, kind: 'INFO', body: `انسحب ${user(me).fullName} من «${g.name}»` });
+  return { left: true };
+});
+on('POST', '/gamiyas/:id/members/:memberId/remove', ({ me, params, body }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role !== 'MANAGER') throw forbidden('only the circle manager can do this');
+  assertChangeable(g);
+  const reason = String(body.reason ?? '').trim();
+  if (reason.length < 3) throw bad('VALIDATION', 'reason is required');
+  const x = membersOf(g.id).find((y) => y.id === params[1]);
+  if (!x) throw notFound('member');
+  if (x.role === 'MANAGER') throw bad('CANNOT_REMOVE_ORGANIZER', 'the organizer cannot be removed');
+  withdraw(g, x);
+  post(g.id, 'SYSTEM', `أزال المنظم ${user(x.userId).fullName} من الجمعية قبل بدئها. السبب: ${reason}`, null, 'member', x.userId);
+  notify([x.userId], { gamiyaId: g.id, kind: 'INFO', body: `أُزلت من «${g.name}» قبل بدئها: ${reason}` });
+  return details(g.id, me);
+});
+on('GET', '/me/pledges', ({ me }) => db.pledges.filter((p) => p.userId === me).sort((a, b) => b.signedAt.localeCompare(a.signedAt)).map((p) => ({
+  id: p.id, gamiyaId: p.gamiyaId, circleName: db.circles.find((c) => c.id === p.gamiyaId)?.name ?? '', termsVersion: p.termsVersion, pledgeVersion: p.pledgeVersion,
+  textSha256: p.textSha256, typedName: p.typedName, signedAt: p.signedAt, totalCommitment: p.terms.totalCommitment, currency: p.terms.currency })));
+
+// ---------- goals and the circle planner (mirrors apps/api/src/goals/goals.ts) ----------
+function goalView(gl: DB['goals'][number]) {
+  const g = gl.gamiyaId ? db.circles.find((c) => c.id === gl.gamiyaId) : null;
+  const m = g && db.members.find((x) => x.gamiyaId === g.id && x.userId === gl.userId && x.status !== 'WITHDRAWN');
+  const pot = g ? Number(g.contribution) * g.memberCount : null;
+  const payout = m ? db.cycles.find((c) => c.gamiyaId === g!.id && c.recipientMemberId === m.id)?.dueDate ?? null : null;
+  const paid = m ? db.installments.filter((i) => i.memberId === m.id && i.s?.confirmedAt).reduce((a, i) => a + Number(i.amountDue), 0) : 0;
+  return { id: gl.id, category: gl.category, title: gl.title, targetAmount: gl.targetAmount, currency: gl.currency, targetDate: gl.targetDate, status: gl.status,
+    circle: g ? { id: g.id, name: g.name, status: g.status, pot: pot != null ? pot.toFixed(2) : null, myPayoutDate: payout, paid: paid.toFixed(2),
+      coversTarget: pot != null ? pot >= Number(gl.targetAmount) : null, onTime: payout && gl.targetDate ? payout <= gl.targetDate : null } : null };
+}
+const myGoals = (me: string) => db.goals.filter((x) => x.userId === me && x.status !== 'ARCHIVED').map(goalView);
+function assertGoalCircle(me: string, gamiyaId: string | null | undefined) { if (gamiyaId && !db.members.some((m) => m.gamiyaId === gamiyaId && m.userId === me && m.status !== 'WITHDRAWN')) throw notFound('gamiya'); }
+on('GET', '/me/goals', ({ me }) => myGoals(me));
+on('POST', '/me/goals', ({ me, body }) => {
+  assertGoalCircle(me, body.gamiyaId);
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(String(body.targetAmount ?? ''))) throw bad('VALIDATION', 'targetAmount must be a decimal string');
+  const gl = { id: uuid(), userId: me, category: body.category ?? 'OTHER', title: String(body.title ?? '').trim() || 'هدف', targetAmount: Number(body.targetAmount).toFixed(2), currency: body.currency ?? 'SAR',
+    targetDate: body.targetDate ?? null, gamiyaId: body.gamiyaId ?? null, status: 'ACTIVE', createdAt: now() };
+  db.goals.push(gl);
+  return goalView(gl);
+});
+on('POST', '/me/goals/:id', ({ me, params, body }) => {
+  const gl = db.goals.find((x) => x.id === params[0] && x.userId === me);
+  if (!gl) throw notFound('goal');
+  assertGoalCircle(me, body.gamiyaId);
+  for (const k of ['category', 'title', 'targetDate', 'gamiyaId', 'status'] as const) if (body[k] !== undefined) (gl as any)[k] = body[k];
+  if (body.targetAmount !== undefined) gl.targetAmount = Number(body.targetAmount).toFixed(2);
+  return goalView(gl);
+});
+on('POST', '/me/goals/:id/remove', ({ me, params }) => {
+  const gl = db.goals.find((x) => x.id === params[0] && x.userId === me);
+  if (!gl) throw notFound('goal');
+  gl.status = 'ARCHIVED';
+  return goalView(gl);
+});
+on('POST', '/ai/circle-plan', ({ body }) => {
+  const r = planCircle({ targetAmount: Number(body.targetAmount), neededBy: body.neededBy, people: body.people, monthlyBudget: body.monthlyBudget, frequency: body.frequency ?? 'MONTHLY', today: today(), maxPot: 100000 });
+  const fmt = (n: number) => n.toLocaleString('en-US');
+  return {
+    today: today(), reason: r.reason ?? null,
+    plans: r.plans.map((p) => ({ ...p, category: body.category ?? 'OTHER',
+      explanation: `${p.members} أعضاء × ${fmt(p.contribution)} ريال ${p.frequency === 'WEEKLY' ? 'كل جمعة' : 'شهرياً'} = ${fmt(p.pot)} ريال يقبضها كل عضو في دوره.` })),
+    note: 'كل الأعضاء يدفعون القسط نفسه ويقبضون المبلغ نفسه أياً كان الدور: لا رسوم على الأدوار الأولى ولا خصومات على الأخيرة.', source: 'rules', policyVersion: 'sg-planner/1.0',
+  };
 });
 
 // lottery (real algorithm: commit–reveal, HMAC-SHA256 Fisher–Yates, maker–checker)

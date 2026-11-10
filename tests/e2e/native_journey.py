@@ -24,6 +24,8 @@ def run(p, device, name, phone, who):
     page.on("request", lambda r: "/api/v1/" in r.url and api_hosts.add(r.url.split("/api/v1/")[0]))
     page.goto(APP + "/")
     expect(page.locator("html")).to_have_attribute("data-native", "android")
+    expect(page.get_by_test_id("onboarding")).to_be_visible()             # first-run introduction, then sign-in
+    page.get_by_role("button", name="تخطَّ").click()
     expect(page.get_by_text("المتابعة بحساب Google")).to_have_count(0)   # Google is browser-only
     page.get_by_label("رقم الجوال").fill(phone)
     with page.expect_response(lambda r: r.url.endswith("/auth/otp/request")) as resp:

@@ -63,6 +63,7 @@ export class OrderingService {
     return {
       status: g.status, orderingMethod: g.ordering, memberCount: g.member_count, isOrganizer: isOrg, myMemberId: g.member_id,
       lotteryStarted: !!lottery,
+      cycleDates: dates,
       requests: ms.map((m) => {
         const mine = m.id === g.member_id;
         return {

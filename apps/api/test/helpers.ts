@@ -26,3 +26,25 @@ export async function uploadFile(http: any, p: { ip: string; token: string }, ga
   if (r.status !== 201) throw new Error(`upload failed ${r.status} ${JSON.stringify(r.body)}`);
   return r.body as { fileId: string };
 }
+
+/**
+ * Since 0.11 every create/join needs the signed pledge. Older tests are about other rules, so their `api` helper signs
+ * automatically (typed name = the person's registered name, hash = the text the server shows). A test that wants to
+ * exercise the pledge itself passes `pledge` explicitly (or `pledge: undefined` to send none).
+ */
+type Raw = (p: any, method: 'get' | 'post', url: string, body?: object) => any;
+export function withPledge(raw: Raw): Raw {
+  return async (p, method, url, body) => {
+    if (p && method === 'post' && body && !('pledge' in body)) {
+      let preview: any = null;
+      if (url === '/api/v1/gamiyas') {
+        const r = await raw(p, 'post', '/api/v1/gamiyas/pledge-preview', { country: 'SA', ...body });
+        if (r.status === 200) preview = r.body;
+      }
+      const m = url.match(/^\/api\/v1\/invitations\/([^/]+)\/accept$/);
+      if (m) { const r = await raw(p, 'get', `/api/v1/invitations/${m[1]}`); if (r.status === 200) preview = r.body.pledge; }
+      if (preview) body = { ...body, pledge: { typedName: p.name, textSha256: preview.textSha256 } };
+    }
+    return raw(p, method, url, body);
+  };
+}

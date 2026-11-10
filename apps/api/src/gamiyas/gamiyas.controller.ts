@@ -1,9 +1,10 @@
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { z } from 'zod';
-import { ClientIp, CorrelationId, CurrentUser, parseBody, parseId, uuid, type AuthUser } from '../common/http.ts';
-import { GamiyasService } from './gamiyas.service.ts';
+import { CorrelationId, CurrentUser, SignerInfo, parseBody, parseId, uuid, type AuthUser } from '../common/http.ts';
+import { CATEGORIES, GamiyasService, type Signer } from './gamiyas.service.ts';
 import { Db } from '../common/db.ts';
 
+export const PledgeSchema = z.object({ typedName: z.string().trim().min(2).max(100), textSha256: z.string().regex(/^[0-9a-f]{64}$/) });
 const CreateSchema = z.object({
   name: z.string().trim().min(2).max(80),
   country: z.enum(['SA', 'EG', 'AE']).default('SA'),
@@ -13,10 +14,13 @@ const CreateSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   graceDays: z.number().int().min(0).max(14).default(3),
   agreementVersionId: uuid,
+  category: z.enum(CATEGORIES).default('OTHER'),
+  pledge: PledgeSchema.optional(), // checked in the service, after the circle/invitation itself
 });
 const PreviewSchema = CreateSchema.pick({ country: true, frequency: true, contribution: true, memberCount: true, startDate: true });
 const InviteSchema = z.object({ maxUses: z.number().int().min(1).max(60).default(1), expiresInHours: z.number().int().min(1).max(168).default(72) });
-const AcceptSchema = z.object({ agreementVersionId: uuid });
+const AcceptSchema = z.object({ agreementVersionId: uuid, pledge: PledgeSchema.optional() });
+const PledgePreviewSchema = CreateSchema.pick({ name: true, country: true, frequency: true, contribution: true, memberCount: true, startDate: true });
 const ExecuteSchema = z.object({ publicEntropy: z.string().trim().min(8).max(200) });
 const DrawInviteSchema = z.object({ at: z.string().datetime({ offset: true }).optional() });
 
@@ -28,9 +32,19 @@ export class GamiyasController {
   agreement() { return this.svc.currentAgreement(); }
 
   @Post('gamiyas')
-  create(@CurrentUser() u: AuthUser, @Body() body: unknown, @ClientIp() ip: string | null, @CorrelationId() cid: string) {
-    return this.svc.create(u.id, { ...parseBody(CreateSchema, body), currency: '' }, ip, cid);
+  create(@CurrentUser() u: AuthUser, @Body() body: unknown, @SignerInfo() who: Signer, @CorrelationId() cid: string) {
+    return this.svc.create(u.id, { ...parseBody(CreateSchema, body), currency: '' }, who, cid);
   }
+
+  /** The pledge the creator will sign, built from the terms in the create form. */
+  @Post('gamiyas/pledge-preview') @HttpCode(200)
+  pledgePreview(@CurrentUser() u: AuthUser, @Body() body: unknown) { return this.svc.createPledgePreview(u.id, parseBody(PledgePreviewSchema, body)); }
+
+  @Get('gamiyas/:id/pledge')
+  pledge(@CurrentUser() u: AuthUser, @Param('id') id: string) { return this.svc.currentPledge(parseId(id), u.id); }
+
+  @Get('invitations/:code')
+  invitation(@CurrentUser() u: AuthUser, @Param('code') code: string) { return this.svc.invitationPreview(code, u.id); }
 
   @Post('gamiyas/preview') @HttpCode(200)
   preview(@Body() body: unknown) { return this.svc.preview(parseBody(PreviewSchema, body)); }
@@ -48,8 +62,9 @@ export class GamiyasController {
   }
 
   @Post('invitations/:code/accept') @HttpCode(200)
-  accept(@CurrentUser() u: AuthUser, @Param('code') code: string, @Body() body: unknown, @ClientIp() ip: string | null, @CorrelationId() cid: string) {
-    return this.svc.acceptInvitation(code, u.id, parseBody(AcceptSchema, body).agreementVersionId, ip, cid);
+  accept(@CurrentUser() u: AuthUser, @Param('code') code: string, @Body() body: unknown, @SignerInfo() who: Signer, @CorrelationId() cid: string) {
+    const b = parseBody(AcceptSchema, body);
+    return this.svc.acceptInvitation(code, u.id, b.agreementVersionId, b.pledge, who, cid);
   }
 
   @Post('gamiyas/:id/lottery/trial') @HttpCode(200)

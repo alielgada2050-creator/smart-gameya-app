@@ -35,7 +35,7 @@ export class NotesService {
       await c.query(
         `INSERT INTO promissory_notes (gamiya_id, member_id, beneficiary_user_id, file_id, reference, amount)
          VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (gamiya_id, member_id) DO UPDATE SET file_id = EXCLUDED.file_id, reference = EXCLUDED.reference, status = 'SUBMITTED', submitted_at = now(), reviewed_by = NULL, reviewed_at = NULL`,
+         ON CONFLICT (gamiya_id, member_id) DO UPDATE SET file_id = EXCLUDED.file_id, amount = EXCLUDED.amount, reference = EXCLUDED.reference, status = 'SUBMITTED', submitted_at = now(), reviewed_by = NULL, reviewed_at = NULL`,
         [gamiyaId, g.member_id, manager.user_id, input.fileId, input.reference, amount]);
       if (g.platform_approval === 'REJECTED') await c.query(`UPDATE gamiyas SET platform_approval='AWAITING_NOTES' WHERE id=$1`, [gamiyaId]);
       const who = (await c.query(`SELECT full_name FROM users WHERE id=$1`, [userId])).rows[0].full_name;
@@ -101,7 +101,7 @@ export class NotesService {
       await this.chat.post(c, { gamiyaId, kind: 'SYSTEM', body: approve
         ? 'اعتمدت إدارة المنصة الجمعية والسندات. يمكن للمنظم تجهيز القرعة.'
         : `لم تعتمد إدارة المنصة الجمعية${input.note ? `: ${input.note}` : ''}. يرجى إعادة رفع السندات المطلوبة.`, refEntity: 'gamiya', refId: gamiyaId });
-      const members = (await c.query(`SELECT user_id FROM gamiya_members WHERE gamiya_id=$1`, [gamiyaId])).rows.map((r) => r.user_id);
+      const members = (await c.query(`SELECT user_id FROM gamiya_members WHERE gamiya_id=$1 AND status <> 'WITHDRAWN'`, [gamiyaId])).rows.map((r) => r.user_id);
       await this.chat.notify(c, members, { gamiyaId, kind: approve ? 'PLATFORM_APPROVED' : 'PLATFORM_REJECTED', body: approve ? 'اعتُمدت جمعيتك الكبيرة.' : 'لم تُعتمد جمعيتك الكبيرة بعد.' });
       await this.audit.log(c, { actorId: userId, action: approve ? 'PLATFORM_APPROVED' : 'PLATFORM_REJECTED', entity: 'gamiya', entityId: gamiyaId, correlationId: cid, details: { note: input.note ?? null } });
       return { platformApproval: approve ? 'APPROVED' : 'REJECTED' };

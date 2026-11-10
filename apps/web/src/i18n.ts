@@ -101,6 +101,70 @@ const ar = {
     checks: { AMOUNT: 'المبلغ يطابق القسط', DATE: 'التاريخ بعد إنشاء الجمعية وليس في المستقبل', METHOD: 'الوسيلة من وسائل المستلم', RECEIPT_UNIQUE: 'الإيصال لم يُستخدم لدفعة أخرى', BANK_REF_UNIQUE: 'رقم العملية غير مكرر' } as Record<string, string>,
     notProvided: 'لم يُدخل', bankDependent: 'حدود التحويل تختلف حسب البنك.',
   },
+  cat: {
+    FAMILY: 'جمعية العائلة', FRIENDS: 'جمعية الأصدقاء', WORK: 'جمعية الزملاء', SCHOOL: 'جمعية المدرسة', HAJJ: 'جمعية الحج والعمرة', WEDDING: 'جمعية الزواج',
+    RAMADAN: 'جمعية رمضان والعيد', FRIDAY: 'جمعية الجمعة', TRAVEL: 'السفر', HOME: 'البيت', CAR: 'السيارة', OTHER: 'هدف آخر',
+  } as Record<string, string>,
+  catHint: {
+    FAMILY: 'مع الأهل والأقارب', FRIENDS: 'مع من تثق بهم', WORK: 'مع زملاء العمل', SCHOOL: 'رسوم ومستلزمات الدراسة', HAJJ: 'نفقة الحج أو العمرة', WEDDING: 'تجهيز الزواج',
+    RAMADAN: 'مصاريف رمضان والعيد', FRIDAY: 'قسط صغير كل جمعة', TRAVEL: 'رحلة العائلة', HOME: 'أثاث أو دفعة سكن', CAR: 'دفعة سيارة', OTHER: 'أي هدف تحدده',
+  } as Record<string, string>,
+  onb: {
+    slides: [
+      { title: 'جمعيتك مع من تثق بهم', body: 'العائلة، الأصدقاء، زملاء العمل أو أولياء أمور المدرسة: ادعُهم برابط أو عبر واتساب في ثوانٍ.' },
+      { title: 'حدّد هدفك ودع المخطط يحسب', body: 'حج، زواج، رسوم مدرسة أو سيارة: اكتب المبلغ وموعد حاجتك، ونقترح عدد الأعضاء والقسط والدور المناسب.' },
+      { title: 'دورك بالاتفاق أو بقرعة عادلة', body: 'اختر دوراً مبكراً أو متأخراً بموافقة الجميع، أو قرعة يتحقق منها كل عضو. القبض نفسه لكل الأدوار.' },
+      { title: 'تعهّد يحمي حق الجميع', body: 'قبل الانضمام يوقّع كل عضو إقراراً بمسؤوليته الكاملة عن السداد، ويبقى السجل موثّقاً للجميع.' },
+    ],
+    next: 'التالي', skip: 'تخطَّ', start: 'ابدأ الآن', label: 'تعريف بالتطبيق', slideOf: (i: number, n: number) => `${i} من ${n}`,
+  },
+  home2: {
+    nextPayout: 'قبضتك القادمة', noPayout: 'لم يُحدَّد دورك بعد', active: (n: number) => `${n} جمعيات`, startFor: 'ابدأ جمعية لـ', myGoals: 'أهدافي', allGoals: 'كل الأهداف', addGoal: 'أضف هدفاً',
+    turnOf: (p: number, n: number) => `الدور ${p} من ${n}`,
+  },
+  goals: {
+    title: 'أهدافي', tabs: { goals: 'أهدافي', planner: 'المخطط الذكي', advisor: 'قدرتك على الادخار' } as Record<string, string>,
+    add: 'أضف هدفاً', kind: 'نوع الهدف', name: 'اسم الهدف', amount: 'المبلغ المطلوب (ريال)', date: 'متى تحتاجه؟ (اختياري)', link: 'اربطه بجمعية', noLink: 'بدون ربط', save: 'احفظ الهدف',
+    none: 'لا أهداف بعد. أضف هدفك الأول (حج، زواج، رسوم مدرسة…) وسنقترح الجمعية المناسبة له.', archive: 'أرشف', plan: 'خطط له',
+    covers: 'قبضتك تغطي الهدف', short: 'قبضتك أقل من الهدف', onTime: 'دورك قبل موعد الحاجة', late: 'دورك بعد موعد الحاجة: اطلب دوراً أبكر', noTurn: 'لم يُحدَّد دورك بعد',
+    paid: (v: string) => `دفعت حتى الآن ${v}`, payoutOn: (d: string) => `قبضتك ${d}`, target: (v: string) => `الهدف ${v}`, by: (d: string) => `قبل ${d}`, saved: 'حُفظ الهدف.',
+  },
+  plan: {
+    title: 'المخطط الذكي', intro: 'اكتب هدفك وموعده، ونقترح جمعيات جاهزة: عدد الأعضاء، القسط، وآخر دور يصلك قبل موعدك. الأرقام من محرك المنصة.',
+    amount: 'المبلغ الذي تحتاجه (ريال)', neededBy: 'تحتاجه قبل (اختياري)', people: 'كم شخصاً سينضم معك؟ (اختياري)', budget: 'كم تستطيع شهرياً؟ (اختياري)',
+    weekly: 'جمعية الجمعة: قسط أسبوعي يبدأ الجمعة القادمة', run: 'اقترح جمعيات', kind: 'نوع الجمعية',
+    members: (n: number) => `${n} أعضاء`, per: { MONTHLY: 'شهرياً', WEEKLY: 'كل جمعة' } as Record<string, string>, pot: 'يقبض كل عضو', from: 'تبدأ', until: 'تنتهي',
+    latest: (n: number, d: string) => `اطلب دوراً من 1 إلى ${n} ليصلك المبلغ قبل موعدك (حتى ${d})`, fits: 'ضمن ميزانيتك', over: 'أعلى من ميزانيتك',
+    create: 'أنشئ هذه الجمعية', reasons: { TARGET_TOO_LARGE: 'المبلغ أعلى من الحد الأقصى للقبض (100,000 ريال). قسّمه على جمعيتين أو هدفين.', DATE_TOO_SOON: 'الموعد قريب جداً: لا يكتمل أي دور قبله. اختر موعداً أبعد أو قللّ المبلغ.' } as Record<string, string>,
+  },
+  wiz: {
+    steps: ['النوع', 'التفاصيل', 'الإقرار'], step: (i: number, n: number, s: string) => `الخطوة ${i} من ${n}: ${s}`, next: 'التالي', back: 'السابق', chooseType: 'لمن هذه الجمعية؟',
+    fromPlan: 'عبّأنا الحقول من خطة المخطط الذكي. عدّلها كما تشاء.', fridayNote: 'جمعية الجمعة: القسط أسبوعي ويوم الدفع الجمعة.',
+  },
+  pledge: {
+    title: 'إقرار وتعهّد بالسداد', intro: 'اقرأ كل بند وأكّده. هذا التعهد يحمي حقك وحق بقية الأعضاء.', terms: 'الشروط بالأرقام',
+    installments: (n: number) => `${n} أقساط`, total: 'إجمالي التزامك', period: 'المدة', pot: 'تقبض في دورك',
+    sign: 'اكتب اسمك الكامل توقيعاً', signHint: (n: string) => `يجب أن يطابق اسمك المسجّل: ${n}`, mismatch: 'الاسم لا يطابق اسمك المسجّل',
+    fullText: 'النص الكامل للإقرار', fingerprint: 'بصمة النص', legal: 'يُحفظ الإقرار مع وقت التوقيع والجهاز كدليل موثّق، ويُعد توقيعاً إلكترونياً ملزماً.',
+    signed: (d: string) => `وقّعت هذا الإقرار في ${d}`, myPledges: 'إقراراتي الموقّعة', version: (v: number) => `الشروط رقم ${v}`,
+  },
+  join2: { title: 'دعوة للانضمام', organizer: 'المنظم', check: 'اعرض الدعوة', invalid: 'الدعوة غير صالحة أو انتهت، أو الجمعية لم تعد تستقبل أعضاء.', already: 'أنت عضو في هذه الجمعية.', open: 'افتح الجمعية' },
+  edit: {
+    title: 'عدّل الجمعية', intro: 'متاح قبل البدء وقبل تجهيز القرعة. أي تغيير في المبلغ أو العدد أو الدورية أو تاريخ البدء يتطلب موافقة الأعضاء من جديد.',
+    save: 'احفظ التعديلات', saved: 'حُفظت التعديلات.', reconfirmWarn: (n: number) => `سيُطلب من ${n} أعضاء مراجعة الشروط الجديدة وتوقيع الإقرار من جديد أو الانسحاب.`,
+    signNew: 'وقّع الإقرار على الشروط الجديدة', minMembers: (n: number) => `انضم ${n} أعضاء: لا يمكن أن يقل العدد عن ذلك`,
+  },
+  manage: {
+    leave: 'انسحب من الجمعية', leaveConfirm: 'انسحابك قبل البدء لا يترتب عليه أي التزام. هل أنت متأكد؟', left: 'انسحبت من الجمعية.', yesLeave: 'نعم، انسحب',
+    remove: 'أزل', removeReason: 'سبب الإزالة (يراه الجميع)', confirmRemove: 'أزل العضو', pending: 'بانتظار موافقته على الشروط الجديدة', pledged: 'وقّع الإقرار',
+  },
+  reconfirm: { title: 'تغيّرت شروط الجمعية', body: 'عدّل المنظم المبلغ أو العدد أو المواعيد. راجع الشروط الجديدة ووقّع، أو انسحب دون أي التزام.', sign: 'أوافق وأوقّع', done: 'وافقت على الشروط الجديدة.' },
+  turn: {
+    title: 'اختر دورك', sameForAll: 'القسط والقبض نفسهما لكل الأدوار: لا رسوم على الأدوار الأولى ولا خصومات على الأخيرة.',
+    band: { EARLY: 'دور مبكر', NONE: 'دور في الوسط', LATE: 'دور متأخر' } as Record<string, string>,
+    range: (a: number, b: number) => (a === b ? `الدور ${a}` : `الأدوار ${a}–${b}`),
+  },
+  share: { whatsapp: 'أرسل عبر واتساب', text: (n: string, link: string) => `أدعوك للانضمام إلى «${n}» على جمعيتي. افتح الرابط واقرأ الشروط ثم انضم: ${link}` },
   sep: '، ', sar: 'ريال', back: 'رجوع', retry: 'أعد المحاولة', loading: 'جارٍ التحميل', error: 'حدث خطأ', cancel: 'إلغاء', save: 'احفظ',
 };
 type Dict = typeof ar;
@@ -204,6 +268,70 @@ const en: Dict = {
     checks: { AMOUNT: 'Amount matches the installment', DATE: 'Date is after the circle was created and not in the future', METHOD: 'Method is one the recipient uses', RECEIPT_UNIQUE: 'Receipt not used for another payment', BANK_REF_UNIQUE: 'Transaction number not repeated' },
     notProvided: 'not entered', bankDependent: 'Transfer limits vary by bank.',
   },
+  cat: {
+    FAMILY: 'Family circle', FRIENDS: 'Friends circle', WORK: 'Colleagues circle', SCHOOL: 'School circle', HAJJ: 'Hajj & Umrah circle', WEDDING: 'Wedding circle',
+    RAMADAN: 'Ramadan & Eid circle', FRIDAY: 'Friday circle', TRAVEL: 'Travel', HOME: 'Home', CAR: 'Car', OTHER: 'Another goal',
+  },
+  catHint: {
+    FAMILY: 'With relatives', FRIENDS: 'With people you trust', WORK: 'With colleagues', SCHOOL: 'Fees and supplies', HAJJ: 'Hajj or Umrah costs', WEDDING: 'Getting married',
+    RAMADAN: 'Ramadan and Eid costs', FRIDAY: 'A small amount every Friday', TRAVEL: 'A family trip', HOME: 'Furniture or a deposit', CAR: 'A car down payment', OTHER: 'Any goal you set',
+  },
+  onb: {
+    slides: [
+      { title: 'Your circle, with people you trust', body: 'Family, friends, colleagues or school parents: invite them with a link or on WhatsApp in seconds.' },
+      { title: 'Set a goal, let the planner do the maths', body: 'Hajj, a wedding, school fees or a car: enter the amount and when you need it, and we suggest the members, the installment and the right turn.' },
+      { title: 'Your turn by agreement or a fair draw', body: 'Pick an early or late turn with everyone’s approval, or run a draw every member can verify. Every turn receives the same amount.' },
+      { title: 'A pledge that protects everyone', body: 'Before joining, each member signs a pledge of full responsibility for paying, and the record stays documented for all.' },
+    ],
+    next: 'Next', skip: 'Skip', start: 'Get started', label: 'Introduction', slideOf: (i, n) => `${i} of ${n}`,
+  },
+  home2: {
+    nextPayout: 'Your next payout', noPayout: 'Your turn is not set yet', active: (n) => `${n} circles`, startFor: 'Start a circle for', myGoals: 'My goals', allGoals: 'All goals', addGoal: 'Add a goal',
+    turnOf: (p, n) => `Turn ${p} of ${n}`,
+  },
+  goals: {
+    title: 'My goals', tabs: { goals: 'My goals', planner: 'Smart planner', advisor: 'What can I save?' },
+    add: 'Add a goal', kind: 'Goal type', name: 'Goal name', amount: 'Amount needed (SAR)', date: 'When do you need it? (optional)', link: 'Link to a circle', noLink: 'Not linked', save: 'Save goal',
+    none: 'No goals yet. Add your first one (Hajj, a wedding, school fees…) and we will suggest the right circle.', archive: 'Archive', plan: 'Plan it',
+    covers: 'Your payout covers the goal', short: 'Your payout is below the goal', onTime: 'Your turn comes before you need it', late: 'Your turn comes after you need it: ask for an earlier one', noTurn: 'Your turn is not set yet',
+    paid: (v) => `Paid so far ${v}`, payoutOn: (d) => `Payout ${d}`, target: (v) => `Goal ${v}`, by: (d) => `by ${d}`, saved: 'Goal saved.',
+  },
+  plan: {
+    title: 'Smart planner', intro: 'Enter your goal and date and we suggest ready circles: members, installment, and the latest turn that pays you in time. Figures come from the platform engine.',
+    amount: 'Amount you need (SAR)', neededBy: 'Needed by (optional)', people: 'How many people will join you? (optional)', budget: 'How much can you pay a month? (optional)',
+    weekly: 'Friday circle: a weekly installment starting this Friday', run: 'Suggest circles', kind: 'Circle type',
+    members: (n) => `${n} members`, per: { MONTHLY: 'a month', WEEKLY: 'every Friday' }, pot: 'Each member receives', from: 'Starts', until: 'Ends',
+    latest: (n, d) => `Ask for turn 1 to ${n} to be paid before your date (by ${d})`, fits: 'Within your budget', over: 'Above your budget',
+    create: 'Create this circle', reasons: { TARGET_TOO_LARGE: 'The amount is above the maximum payout (100,000 SAR). Split it across two circles or goals.', DATE_TOO_SOON: 'The date is too close: no turn completes before it. Choose a later date or a smaller amount.' },
+  },
+  wiz: {
+    steps: ['Type', 'Details', 'Pledge'], step: (i, n, s) => `Step ${i} of ${n}: ${s}`, next: 'Next', back: 'Back', chooseType: 'Who is this circle for?',
+    fromPlan: 'We filled the fields from the smart planner. Change anything you like.', fridayNote: 'Friday circle: a weekly installment, paid on Fridays.',
+  },
+  pledge: {
+    title: 'Payment pledge', intro: 'Read and confirm each clause. This pledge protects you and every other member.', terms: 'The terms in numbers',
+    installments: (n) => `${n} installments`, total: 'Your total commitment', period: 'Period', pot: 'You receive on your turn',
+    sign: 'Type your full name to sign', signHint: (n) => `Must match your registered name: ${n}`, mismatch: 'The name does not match your registered name',
+    fullText: 'Full pledge text', fingerprint: 'Text fingerprint', legal: 'The pledge is kept with the signing time and device as documented evidence and counts as a binding electronic signature.',
+    signed: (d) => `You signed this pledge on ${d}`, myPledges: 'My signed pledges', version: (v) => `Terms no. ${v}`,
+  },
+  join2: { title: 'Invitation to join', organizer: 'Organizer', check: 'Show invitation', invalid: 'The invitation is not valid or has expired, or the circle is no longer accepting members.', already: 'You are a member of this circle.', open: 'Open circle' },
+  edit: {
+    title: 'Edit circle', intro: 'Available before the start and before a draw is prepared. Changing the amount, member count, frequency or start date needs every member’s approval again.',
+    save: 'Save changes', saved: 'Changes saved.', reconfirmWarn: (n) => `${n} members will be asked to review the new terms and sign the pledge again, or leave.`,
+    signNew: 'Sign the pledge for the new terms', minMembers: (n) => `${n} members have joined: the count cannot go below that`,
+  },
+  manage: {
+    leave: 'Leave circle', leaveConfirm: 'Leaving before the start carries no obligation. Are you sure?', left: 'You left the circle.', yesLeave: 'Yes, leave',
+    remove: 'Remove', removeReason: 'Reason for removing (everyone sees it)', confirmRemove: 'Remove member', pending: 'Waiting for them to accept the new terms', pledged: 'Signed the pledge',
+  },
+  reconfirm: { title: 'The circle terms changed', body: 'The organizer changed the amount, member count or dates. Review the new terms and sign, or leave with no obligation.', sign: 'I agree and sign', done: 'You accepted the new terms.' },
+  turn: {
+    title: 'Choose your turn', sameForAll: 'Every turn pays the same installment and receives the same amount: no fees for early turns, no discounts for late ones.',
+    band: { EARLY: 'Early turn', NONE: 'Middle turn', LATE: 'Late turn' },
+    range: (a, b) => (a === b ? `Turn ${a}` : `Turns ${a}–${b}`),
+  },
+  share: { whatsapp: 'Send on WhatsApp', text: (n, link) => `Join “${n}” on Jamiyati. Open the link, read the terms and join: ${link}` },
   sep: ', ', sar: 'SAR', back: 'Back', retry: 'Try again', loading: 'Loading', error: 'Something went wrong', cancel: 'Cancel', save: 'Save',
 };
 

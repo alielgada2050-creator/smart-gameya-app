@@ -7,7 +7,7 @@ import pg from 'pg';
 import type { INestApplication } from '@nestjs/common';
 import { createServer, type Server } from 'node:http';
 import { createApp } from '../src/main.ts';
-import { testConfigExtras, uploadFile, PNG } from './helpers.ts';
+import { testConfigExtras, uploadFile, PNG, withPledge } from './helpers.ts';
 import { OpenAICompatibleProvider, ProviderChain } from '../../../packages/ai-core/src/providers.ts';
 
 /**
@@ -49,11 +49,12 @@ const config: any = {
 };
 
 interface Person { name: string; phone: string; ip: string; token: string; id: string }
-const api = (p: Person | null, method: 'get' | 'post', url: string, body?: object) => {
+const rawApi = (p: Person | null, method: 'get' | 'post', url: string, body?: object) => {
   let r = http[method](url).set('X-Forwarded-For', p?.ip ?? '10.0.0.250');
   if (p) r = r.set('Authorization', `Bearer ${p.token}`);
   return body ? r.send(body) : r;
 };
+const api = withPledge(rawApi) as typeof rawApi;
 
 async function login(name: string, phone: string): Promise<Person> {
   const ip = `10.0.0.${ipSeq++}`;

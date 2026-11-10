@@ -116,3 +116,19 @@
 
 ## الصحة
 `GET /health` (عام).
+
+## 0.11.0 — الإقرار، التعديل، الأهداف، المخطط
+| الطريقة والمسار | الوصف |
+|---|---|
+| `POST /gamiyas/pledge-preview` | نص الإقرار وبصمته للمنشئ من شروط النموذج (`name, country, frequency, contribution, memberCount, startDate`). |
+| `POST /gamiyas` | يقبل الآن `category` و`pledge: {typedName, textSha256}` (مطلوب: `PLEDGE_REQUIRED` / `PLEDGE_OUTDATED` / `SIGNATURE_MISMATCH`). |
+| `GET /invitations/:code` | ملخص الجمعية ومنظّمها وإقرار حامل الدعوة قبل الانضمام. |
+| `POST /invitations/:code/accept` | يقبل `pledge`؛ العضو المنسحب يستطيع العودة. |
+| `GET /gamiyas/:id/pledge` | إقرار العضو على الشروط الحالية و`signedAt`. |
+| `POST /gamiyas/:id/edit/preview` · `POST /gamiyas/:id/edit` | تعديل الاسم/النوع/القسط/العدد/الدورية/البدء (المنظم، قبل البدء والقرعة). التغيير المالي يتطلب `pledge` جديداً ويعيد الأعضاء إلى `PENDING_APPROVAL`. أخطاء: `BELOW_JOINED`, `LOTTERY_PREPARED`, `PROPOSAL_OPEN`, `ALREADY_STARTED`. |
+| `POST /gamiyas/:id/reconfirm` | العضو يوقّع الشروط الجديدة (`NOTHING_TO_CONFIRM` إن لم يلزم). |
+| `POST /gamiyas/:id/leave` · `POST /gamiyas/:id/members/:memberId/remove {reason}` | انسحاب قبل البدء / إزالة بسبب يراه الجميع. |
+| `GET /me/pledges` | إقرارات المستخدم بكل إصدارات الشروط. |
+| `GET/POST /me/goals` · `POST /me/goals/:id` · `POST /me/goals/:id/remove` | الأهداف وربطها بجمعية والتقدّم. |
+| `POST /ai/circle-plan` | المخطط الذكي: `{targetAmount, neededBy?, people?, monthlyBudget?, frequency, category}` ← حتى 3 خطط. |
+| `GET /gamiyas/:id/order` | يعيد الآن `cycleDates` لبطاقات «اختر دورك». |

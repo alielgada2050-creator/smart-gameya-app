@@ -53,7 +53,7 @@ with sync_playwright() as p:
     pg.goto(URL)
     # first visit: the switcher opens by itself over the sign-in illustration
     expect(pg.get_by_role("dialog", name="نسخة تجريبية")).to_be_visible()
-    expect(pg.get_by_role("img", name=re.compile("عضوة ترحّب بك"))).to_be_visible()
+    expect(pg.get_by_test_id("onboarding")).to_be_attached()             # first-run introduction behind the switcher
     wide = pg.evaluate("document.querySelector('main').getBoundingClientRect().width")
     if wide < 900: errors.append(f"signed-out page uses only {wide}px of a 1280px window")
     pg.screenshot(path=f"{SHOTS}/40-demo-start.png")
@@ -97,9 +97,21 @@ with sync_playwright() as p:
     nav(pg, "جمعياتي")
     pg.get_by_role("link", name="انضم بدعوة").click()
     pg.get_by_label("رمز الدعوة").fill("HAYY2026")
+    pg.get_by_role("button", name="اعرض الدعوة").click()
+    expect(pg.get_by_test_id("invite-card")).to_contain_text("جمعية الحي")
     pg.get_by_label("قرأت الاتفاقية وأوافق عليها").check()
+    box = pg.get_by_test_id("pledge")
+    for cb in box.locator(".pledge-clauses input[type=checkbox]").all(): cb.check()
+    box.get_by_label("اكتب اسمك الكامل توقيعاً").fill("نورة")
     pg.get_by_role("button", name="انضم إلى الجمعية").click()
     expect(pg.get_by_role("heading", name="جمعية الحي")).to_be_visible()
+
+    # 4b. Goals and the smart planner
+    nav(pg, "أهدافي")
+    pg.get_by_role("tab", name="المخطط الذكي").click()
+    pg.get_by_label("المبلغ الذي تحتاجه (ريال)").fill("12000")
+    pg.get_by_role("button", name="اقترح جمعيات").click()
+    expect(pg.get_by_test_id("plan").first).to_be_visible()
 
     # 5. Chat assistant
     circle(pg, "جمعية الأصدقاء", "المحادثة")
@@ -140,7 +152,7 @@ with sync_playwright() as p:
     if watch(pg) != live_winner: errors.append("replay showed a different winner")
     # hand the browser-made draw to Node: the real lottery code must verify it independently
     import json as _j
-    state = _j.loads(pg.evaluate("localStorage.getItem('sg.demo.v1')"))
+    state = _j.loads(pg.evaluate("localStorage.getItem('sg.demo.v2')"))
     rec = next(v["result"] for v in state["lottery"].values() if v.get("result"))
     open(os.path.join(SHOTS, "demo-draw.json"), "w").write(_j.dumps(rec))
 

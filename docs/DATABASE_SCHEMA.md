@@ -37,3 +37,8 @@ erDiagram
 | البذرة تطابق الالتزام | trigger `check_lottery_seed` (pgcrypto sha256) |
 | Maker–Checker للقرعة | `CHECK executed_by <> approved_by` |
 | المبالغ | `numeric(18,2)`؛ التواريخ `timestamptz` (UTC) |
+
+## الترحيل 006 — الأنواع، الإقرارات، الأهداف
+- `gamiyas.category` (FAMILY, FRIENDS, WORK, SCHOOL, HAJJ, WEDDING, RAMADAN, FRIDAY, TRAVEL, HOME, CAR, OTHER) و`gamiyas.terms_version` (يرتفع مع كل تغيير مالي).
+- `pledges`: إلحاقي فقط (trigger `forbid_mutation`)، فريد لكل (مستخدم، جمعية، إصدار شروط): بصمة النص، الاسم المكتوب، الشروط JSON، IP، الجهاز، الوقت.
+- `goals`: هدف المستخدم ومبلغه وموعده وربطه الاختياري بجمعية، والحالة ACTIVE/DONE/ARCHIVED.

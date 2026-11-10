@@ -44,7 +44,7 @@ export function PayoutOrder({ id, circle, lotteryState, lotteryPanel, onChange }
       {current !== 'LOTTERY' && s.openProposal && <OpenProposal id={id} p={s.openProposal} isOrganizer={s.isOrganizer} onChange={reload} />}
       {current === 'PRIORITY' && !s.openProposal && (
         <>
-          <MyPriority id={id} mine={s.requests.find((r: any) => r.memberId === s.myMemberId)} onSaved={st.reload} />
+          <MyPriority id={id} dates={s.cycleDates ?? []} mine={s.requests.find((r: any) => r.memberId === s.myMemberId)} onSaved={st.reload} />
           <Requests requests={s.requests} lang={lang} />
           <Suggestion id={id} full={circle.status === 'LOCKED'} isOrganizer={s.isOrganizer} onChange={reload} />
         </>
@@ -58,8 +58,8 @@ export function PayoutOrder({ id, circle, lotteryState, lotteryPanel, onChange }
   );
 }
 
-function MyPriority({ id, mine, onSaved }: { id: string; mine: any; onSaved: () => void }) {
-  const { t } = useT();
+function MyPriority({ id, dates, mine, onSaved }: { id: string; dates: string[]; mine: any; onSaved: () => void }) {
+  const { t, lang } = useT();
   const [pref, setPref] = useState<string>(mine?.declared ? mine.preference : 'NONE');
   const [neededBy, setNeededBy] = useState<string>(mine?.neededBy ?? '');
   const [reason, setReason] = useState<string>(mine?.reason ?? 'NONE');
@@ -79,9 +79,21 @@ function MyPriority({ id, mine, onSaved }: { id: string; mine: any; onSaved: () 
     <details className="sub-panel" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
       <summary><strong>{t.ord.myPriority}</strong>{mine?.declared && <span className="muted small"> — {t.ord.pref[mine.preference]}</span>}</summary>
       <div className="stack-sm" style={{ marginTop: 8 }}>
-        <div className="segmented" role="radiogroup" aria-label={t.ord.myPriority}>
-          {['EARLY', 'NONE', 'LATE'].map((p) => <button key={p} type="button" role="radio" aria-checked={pref === p} onClick={() => setPref(p)}>{t.ord.pref[p]}</button>)}
+        <h3>{t.turn.title}</h3>
+        <div className="turn-picker" role="radiogroup" aria-label={t.turn.title} data-testid="turn-picker">
+          {(['EARLY', 'NONE', 'LATE'] as const).map((p) => {
+            const b = turnBand(p, dates.length);
+            return (
+              <button key={p} type="button" role="radio" aria-checked={pref === p} className={`turn-card ${p}`} onClick={() => setPref(p)}>
+                <span className="turn-bar" aria-hidden="true">{dates.map((_, i) => <i key={i} className={i + 1 >= b.from && i + 1 <= b.to ? 'on' : ''} />)}</span>
+                <strong>{t.turn.band[p]}</strong>
+                <span className="small">{t.ord.pref[p]}</span>
+                {dates.length > 0 && <span className="muted small">{t.turn.range(b.from, b.to)}{t.sep}{date(dates[b.from - 1], lang)}{b.to > b.from ? ` – ${date(dates[b.to - 1], lang)}` : ''}</span>}
+              </button>
+            );
+          })}
         </div>
+        <p className="muted small" data-testid="no-fees">{t.turn.sameForAll}</p>
         <div className="grid-2">
           {pref !== 'LATE' && <label>{t.ord.neededBy}<input type="date" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} /></label>}
           <label>{t.ord.reasonLabel}
@@ -250,4 +262,13 @@ function OpenProposal({ id, p, isOrganizer, onChange }: { id: string; p: any; is
       <ErrorNote error={error} />
     </div>
   );
+}
+
+/** Which turns each choice covers: the first third, the middle, the last third (at least one turn each). */
+export function turnBand(p: 'EARLY' | 'NONE' | 'LATE', n: number) {
+  if (n <= 0) return { from: 1, to: 1 };
+  const third = Math.max(1, Math.floor(n / 3));
+  if (p === 'EARLY') return { from: 1, to: third };
+  if (p === 'LATE') return { from: n - third + 1, to: n };
+  return { from: Math.min(third + 1, n), to: Math.max(third + 1, n - third) };
 }

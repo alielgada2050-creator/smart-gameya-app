@@ -27,7 +27,7 @@ function GoogleButton({ clientId, onCredential }: { clientId: string; onCredenti
   return <div ref={ref} style={{ display: 'grid', placeItems: 'center', minHeight: 44 }} />;
 }
 
-export function Login({ onSignedIn }: { onSignedIn: (u: SessionUser) => void }) {
+export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) => void; onIntro?: () => void }) {
   const { t } = useT();
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [linkToken, setLinkToken] = useState<string | null>(null);
@@ -73,6 +73,7 @@ export function Login({ onSignedIn }: { onSignedIn: (u: SessionUser) => void }) 
         <WelcomeScene label={t.cele.welcomeArt} />
         <h1>{t.appName}</h1>
         <p className="muted">{t.tagline}</p>
+        {onIntro && <button type="button" className="btn btn-ghost intro-link" onClick={onIntro}>{t.onb.label}</button>}
       </section>
 
       {linkToken && <p className="notice" role="status">{t.googleNeedsPhone}</p>}

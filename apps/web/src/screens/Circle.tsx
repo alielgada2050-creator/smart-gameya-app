@@ -9,6 +9,7 @@ import { PayoutOrder } from './Ordering.tsx';
 import { WEB_ORIGIN, isNative, shareLink } from '../platform.ts';
 import { openDrawStage } from '../lottery/host.tsx';
 import type { DrawResult } from '../lottery/DrawStage.tsx';
+import { CircleTitleBadge, EditCircle, LeaveButton, MemberExtras, ReconfirmTerms, canChange } from './Manage.tsx';
 
 export function Circle({ id, tab }: { id: string; tab: string }) {
   const { t, lang } = useT();
@@ -37,11 +38,12 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
     <div className="stack">
       <div className="stack-sm">
         <div className="row">
-          <h1>{c.name}</h1>
+          <span className="row-start title-with-badge"><CircleTitleBadge c={c} /><h1>{c.name}</h1></span>
           <span className="row-start"><TierChip tier={c.tier} label={t.tierName[c.tier]} /><Pill status={c.status} label={t.status[c.status]} /></span>
         </div>
         <p className="muted">{money(c.contribution, lang, c.currency)} {t.perMonth[c.frequency]}{t.sep}{t.members(c.joined, c.memberCount)}</p>
       </div>
+      {c.myMemberStatus === 'PENDING_APPROVAL' && <ReconfirmTerms id={id} onDone={reloadAll} />}
       <div className="segmented" role="tablist" aria-label={c.name}>
         {tabs.map((x) => (
           <button key={x.key} role="tab" aria-selected={tab === x.key} onClick={() => { location.hash = `/c/${id}/${x.key}`; }}>{x.label}</button>
@@ -79,6 +81,7 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
                 <li key={m.memberId} className="row">
                   <span>{m.payoutPosition ? `${m.payoutPosition}. ` : ''}{m.fullName}{m === me ? ` (${t.you})` : ''}</span>
                   <span className="row-start">
+                    <MemberExtras id={id} c={c} m={m} editable={canChange(c, lottery.data)} onChange={reloadAll} />
                     {c.tier === 'LARGE' && m.role !== 'MANAGER' && c.notes && (() => { const n = c.notes.find((x: any) => x.memberId === m.memberId); return n ? <Pill status={n.status} label={t.notesStatus[n.status]} /> : null; })()}
                     {m.role === 'MANAGER' && <span className="muted small">{t.manager}</span>}
                   </span>
@@ -88,7 +91,9 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
           </section>
           <div className="stack">
             {c.tier === 'LARGE' && <LargeNotes id={id} circle={c} onChange={reloadAll} />}
-            {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <Invite id={id} remaining={c.memberCount - c.joined} />}
+            {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <Invite id={id} name={c.name} remaining={c.memberCount - c.joined} />}
+            {c.myRole === 'MANAGER' && canChange(c, lottery.data) && <EditCircle key={`${c.termsVersion}-${c.name}-${c.memberCount}`} id={id} circle={c} onSaved={reloadAll} />}
+            {c.myRole !== 'MANAGER' && c.myMemberStatus === 'ACTIVE' && canChange(c, lottery.data) && <div className="row-start"><LeaveButton id={id} /></div>}
             {lottery.data && (
               <PayoutOrder id={id} circle={c} lotteryState={lottery.data} onChange={reloadAll}
                 lotteryPanel={<Lottery id={id} circle={c} state={lottery.data} onChange={reloadAll} />} />
@@ -206,7 +211,7 @@ function LargeNotes({ id, circle, onChange }: { id: string; circle: any; onChang
   );
 }
 
-function Invite({ id, remaining }: { id: string; remaining: number }) {
+function Invite({ id, name, remaining }: { id: string; name: string; remaining: number }) {
   const { t } = useT();
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -228,6 +233,9 @@ function Invite({ id, remaining }: { id: string; remaining: number }) {
           <p className="muted small">{t.inviteUses(Math.max(1, remaining))}</p>
           <div className="row-start">
             <button className="btn btn-secondary" onClick={() => navigator.clipboard?.writeText(link).then(() => setCopied(true)).catch(() => {})}><Icon name="copy" />{copied ? t.copied : t.copy}</button>
+            <a className="btn btn-whatsapp" href={`https://wa.me/?text=${encodeURIComponent(t.share.text(name, link))}`} target="_blank" rel="noopener noreferrer">
+              <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4.5 19.5 5.6 16A8 8 0 1 1 8 18.4z" /><path d="M9.5 8.5c0 3 2.5 5.8 5.5 6l1-1.4-1.6-.9-.9.8c-1-.5-1.9-1.4-2.4-2.4l.8-.9-.9-1.6z" /></svg>
+              {t.share.whatsapp}</a>
             {(isNative || 'share' in navigator) && <button className="btn btn-primary" onClick={() => shareLink(t.invite, link)}>{t.shareInvite}</button>}
           </div>
         </>

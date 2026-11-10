@@ -9,7 +9,7 @@ import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/main.ts';
 import { ProviderChain } from '../../../packages/ai-core/src/providers.ts';
-import { testConfigExtras, uploadFile, PNG, PDF } from './helpers.ts';
+import { testConfigExtras, uploadFile, PNG, PDF, withPledge } from './helpers.ts';
 
 /** Features from the 2026-11-09 request: tiers, large-circle approval, payout methods, receipts, chat, assistant, reminders, Google sign-in. */
 let app: INestApplication, http: any, db: pg.Client, jwks: Server;
@@ -21,11 +21,12 @@ const config: any = {
 };
 
 interface Person { name: string; phone: string; ip: string; token: string; id: string }
-const api = (p: Person | null, method: 'get' | 'post', url: string, body?: object) => {
+const rawApi = (p: Person | null, method: 'get' | 'post', url: string, body?: object) => {
   let r = http[method](url).set('X-Forwarded-For', p?.ip ?? '10.1.0.250');
   if (p) r = r.set('Authorization', `Bearer ${p.token}`);
   return body ? r.send(body) : r;
 };
+const api = withPledge(rawApi) as typeof rawApi;
 async function login(name: string, phone: string, linkToken?: string): Promise<Person> {
   const ip = `10.1.0.${ipSeq++}`;
   const req = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', ip).send({ phone });

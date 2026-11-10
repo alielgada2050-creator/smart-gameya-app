@@ -12,8 +12,8 @@ export interface DB {
   otp: Record<string, string>;
   agreement: { id: string; template_code: string; version: string; locale: string; body_sha256: string; body: string };
   circles: { id: string; name: string; currency: string; country: string; frequency: string; contribution: string; memberCount: number; startDate: string; graceDays: number;
-    status: string; tier: string; platformApproval: string; platformReviewNote: string | null; ordering: string; createdAt: string }[];
-  members: { id: string; gamiyaId: string; userId: string; role: string; payoutPosition: number | null; joinedAt: string }[];
+    status: string; tier: string; platformApproval: string; platformReviewNote: string | null; ordering: string; createdAt: string; category?: string; termsVersion?: number }[];
+  members: { id: string; gamiyaId: string; userId: string; role: string; payoutPosition: number | null; joinedAt: string; status?: string }[];
   cycles: { id: string; gamiyaId: string; index: number; dueDate: string; recipientMemberId: string }[];
   installments: { id: string; cycleId: string; memberId: string; amountDue: string; s: null | {
     declaredAt: string; reference: string | null; methodKind: string; receiptFileId: string; attempts: number; declaredAmount: string | null; transferDate: string | null;
@@ -29,6 +29,8 @@ export interface DB {
   votes: { proposalId: string; memberId: string; vote: string; reason: string | null }[];
   notes: { id: string; gamiyaId: string; memberId: string; fileId: string; reference: string; amount: string; status: string }[];
   payoutMethods: { id: string; userId: string; country: string; kind: string; value: string; last4: string; isDefault: boolean }[];
+  pledges: { id: string; userId: string; gamiyaId: string; termsVersion: number; pledgeVersion: string; textSha256: string; typedName: string; terms: any; signedAt: string }[];
+  goals: { id: string; userId: string; category: string; title: string; targetAmount: string; currency: string; targetDate: string | null; gamiyaId: string | null; status: string; createdAt: string }[];
 }
 
 const uuid = () => crypto.randomUUID();
@@ -58,7 +60,7 @@ function doc(title: string, lines: string[], accent: string) {
 export function seed(): DB {
   const db: DB = {
     seq: 0, seeded: [], users: [], otp: {}, circles: [], members: [], cycles: [], installments: [], disputes: [], files: [], invitations: [], chat: [], notifications: [],
-    lottery: {}, priority: {}, proposals: [], votes: [], notes: [], payoutMethods: [],
+    lottery: {}, priority: {}, proposals: [], votes: [], notes: [], payoutMethods: [], pledges: [], goals: [],
     agreement: { id: '6a7f9de2-90e9-470d-8e95-12181b804a6e', template_code: 'JOIN', version: '1.0', locale: 'ar', body_sha256: 'demo', body: agreementBody },
   };
   const U = (fullName: string, phone: string, platformRole = 'NONE') => { const u = { id: uuid(), phone, fullName, platformRole }; db.users.push(u); db.seeded.push(u.id); return u.id; };
@@ -77,14 +79,21 @@ export function seed(): DB {
     const g = { id: uuid(), currency: 'SAR', country: 'SA', frequency: 'MONTHLY', graceDays: 3, status: 'RECRUITING', tier: 'SMALL', platformApproval: 'NOT_REQUIRED', platformReviewNote: null, ordering: 'LOTTERY', ...c };
     db.circles.push(g as DB['circles'][number]); return g as DB['circles'][number];
   };
-  const join = (g: DB['circles'][number], userId: string, role: string, when: string) => { const m = { id: uuid(), gamiyaId: g.id, userId, role, payoutPosition: null as number | null, joinedAt: when }; db.members.push(m); return m.id; };
+  const join = (g: DB['circles'][number], userId: string, role: string, when: string) => {
+    const m = { id: uuid(), gamiyaId: g.id, userId, role, payoutPosition: null as number | null, joinedAt: when, status: 'ACTIVE' }; db.members.push(m);
+    // every seeded member signed the pledge when joining (evidence summary only; new signatures in the demo carry the full text hash)
+    const u = db.users.find((x) => x.id === userId)!;
+    const total = (Number(g.contribution) * (g.memberCount - 1)).toFixed(2);
+    db.pledges.push({ id: uuid(), userId, gamiyaId: g.id, termsVersion: 1, pledgeVersion: 'sg-pledge/1.0', textSha256: 'seed'.padEnd(64, '0'), typedName: u.fullName, terms: { totalCommitment: total, currency: g.currency }, signedAt: when });
+    return m.id;
+  };
   const receipt = (owner: string, g: string, title: string, lines: string[]) => {
     const f = { id: uuid(), ownerId: owner, gamiyaId: g, purpose: 'RECEIPT', mime: 'image/svg+xml', sha256: uuid(), dataUrl: doc(title, lines, '#0F172A') };
     db.files.push(f); return f.id;
   };
 
   // ── 1) جمعية الأصدقاء — running; payments in every state ──
-  const g1 = circle({ name: 'جمعية الأصدقاء', contribution: '2000.00', memberCount: 4, startDate: iso(-46), createdAt: at(-60), status: 'ACTIVE', ordering: 'CONSENSUS' });
+  const g1 = circle({ name: 'جمعية الأصدقاء', contribution: '2000.00', memberCount: 4, startDate: iso(-46), createdAt: at(-60), status: 'ACTIVE', ordering: 'CONSENSUS', category: 'FRIENDS' });
   const m1 = { sara: join(g1, sara, 'MANAGER', at(-60)), khalid: join(g1, khalid, 'MEMBER', at(-59)), noura: join(g1, noura, 'MEMBER', at(-59, 30)), fahad: join(g1, fahad, 'MEMBER', at(-58)) };
   const order1 = [m1.khalid, m1.sara, m1.noura, m1.fahad];
   order1.forEach((id, i) => { db.members.find((m) => m.id === id)!.payoutPosition = i + 1; });
@@ -137,7 +146,7 @@ export function seed(): DB {
   note(reem, g1.id, 'ACTION_NEEDED', 'اعتراض بانتظار قرار المنصة في «جمعية الأصدقاء»', at(-12, 1));
 
   // ── 2) جمعية العائلة — full, choose the order (draw or priority) ──
-  const g2 = circle({ name: 'جمعية العائلة', contribution: '1500.00', memberCount: 3, startDate: iso(20), createdAt: at(-5), status: 'LOCKED' });
+  const g2 = circle({ name: 'جمعية العائلة', contribution: '1500.00', memberCount: 3, startDate: iso(20), createdAt: at(-5), status: 'LOCKED', category: 'FAMILY' });
   join(g2, sara, 'MANAGER', at(-5)); const k2 = join(g2, khalid, 'MEMBER', at(-4)); const n2 = join(g2, noura, 'MEMBER', at(-3));
   db.priority[k2] = { preference: 'EARLY', neededBy: iso(50), reason: 'WEDDING', shareReason: true, note: 'موعد الزواج بعد شهرين' };
   db.priority[n2] = { preference: 'LATE', neededBy: null, reason: 'NONE', shareReason: false, note: null };
@@ -147,14 +156,14 @@ export function seed(): DB {
   note(sara, g2.id, 'ACTION_NEEDED', 'اكتمل عدد «جمعية العائلة»: اختر طريقة ترتيب القبض', at(-3, 1));
 
   // ── 3) جمعية الحي — recruiting (medium tier); invite code for the other personas ──
-  const g3 = circle({ name: 'جمعية الحي', contribution: '5000.00', memberCount: 4, startDate: iso(35), createdAt: at(-2), tier: 'MEDIUM' });
+  const g3 = circle({ name: 'جمعية الحي', contribution: '5000.00', memberCount: 4, startDate: iso(35), createdAt: at(-2), tier: 'MEDIUM', category: 'HAJJ' });
   join(g3, sara, 'MANAGER', at(-2)); join(g3, fahad, 'MEMBER', at(-1));
   db.invitations.push({ code: 'HAYY2026', gamiyaId: g3.id, maxUses: 2, uses: 0, expiresAt: at(30) });
   chat(g3.id, 'SYSTEM', 'أُنشئت الجمعية (متوسطة). القبض لكل دورة 20000.00 SAR.', at(-2));
   chat(g3.id, 'SYSTEM', 'انضم فهد إلى الجمعية ووافق على الاتفاقية.', at(-1));
 
   // ── 4) الجمعية الكبيرة — large: promissory notes submitted, waiting for platform review ──
-  const g4 = circle({ name: 'الجمعية الكبيرة', contribution: '30000.00', memberCount: 3, startDate: iso(40), createdAt: at(-8), status: 'LOCKED', tier: 'LARGE', platformApproval: 'PENDING' });
+  const g4 = circle({ name: 'الجمعية الكبيرة', contribution: '30000.00', memberCount: 3, startDate: iso(40), createdAt: at(-8), status: 'LOCKED', tier: 'LARGE', platformApproval: 'PENDING', category: 'HOME' });
   join(g4, khalid, 'MANAGER', at(-8)); const s4 = join(g4, sara, 'MEMBER', at(-7)); const n4 = join(g4, noura, 'MEMBER', at(-7, 40));
   for (const [mid, uid, ref] of [[s4, sara, 'NOTE-4101'], [n4, noura, 'NOTE-4102']] as const) {
     const f = { id: uuid(), ownerId: uid, gamiyaId: g4.id, purpose: 'PROMISSORY_NOTE', mime: 'image/svg+xml', sha256: uuid(), dataUrl: doc('سند لأمر', ['لأمر: خالد (منظم الجمعية)', 'المبلغ: 90,000 ريال', `المرجع: ${ref}`], '#B45309') };
@@ -164,6 +173,20 @@ export function seed(): DB {
   chat(g4.id, 'SYSTEM', 'أُنشئت الجمعية (كبيرة). القبض لكل دورة 90000.00 SAR. تتطلب سنداً لأمر من كل عضو واعتماد إدارة المنصة.', at(-8));
   chat(g4.id, 'SYSTEM', 'رفعت سارة ونورة السندات لأمر لصالح المنظم. طلب المنظم اعتماد إدارة المنصة.', at(-6));
   note(reem, g4.id, 'ACTION_NEEDED', 'جمعية كبيرة بانتظار مراجعة السندات: «الجمعية الكبيرة»', at(-6, 1));
+
+  // ── 5) جمعية الجمعة — weekly, recruiting; invite code for the pledge-before-joining journey ──
+  const fri = (() => { const d = new Date(`${iso(0)}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + (((5 - d.getUTCDay() + 7) % 7) || 7)); return d.toISOString().slice(0, 10); })();
+  const g5 = circle({ name: 'جمعية الجمعة', contribution: '200.00', memberCount: 6, startDate: fri, createdAt: at(-1), frequency: 'WEEKLY', category: 'FRIDAY' });
+  join(g5, noura, 'MANAGER', at(-1)); join(g5, khalid, 'MEMBER', at(-1, 30));
+  db.invitations.push({ code: 'JUMAA26', gamiyaId: g5.id, maxUses: 4, uses: 0, expiresAt: at(30) });
+  chat(g5.id, 'SYSTEM', 'أُنشئت الجمعية (صغيرة). القبض لكل دورة 1200.00 SAR، كل جمعة.', at(-1));
+
+  // ── goals ──
+  const goal = (userId: string, category: string, title: string, targetAmount: string, targetDate: string | null, gamiyaId: string | null) =>
+    db.goals.push({ id: uuid(), userId, category, title, targetAmount, currency: 'SAR', targetDate, gamiyaId, status: 'ACTIVE', createdAt: at(-3) });
+  goal(sara, 'HAJJ', 'حج العائلة', '20000.00', iso(150), g3.id);
+  goal(sara, 'SCHOOL', 'رسوم المدرسة', '12000.00', iso(120), null);
+  goal(khalid, 'WEDDING', 'تجهيز الزواج', '4500.00', iso(60), g2.id);
 
   return db;
 }

@@ -22,6 +22,8 @@ import { NotesController, NotesService } from './notes/notes.ts';
 import { PayoutsController, PayoutsService } from './payouts/payouts.ts';
 import { PublicConfigController } from './public-config.ts';
 import { OrderingController, OrderingService } from './ordering/ordering.ts';
+import { MembershipController, MembershipService } from './gamiyas/membership.ts';
+import { GoalsController, GoalsService } from './goals/goals.ts';
 
 @Module({})
 export class AppModule implements NestModule {
@@ -32,10 +34,10 @@ export class AppModule implements NestModule {
         JwtModule.register({ secret: config.jwtSecret, signOptions: { algorithm: 'HS256' } }),
         ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
       ],
-      controllers: [HealthController, PublicConfigController, AuthController, GamiyasController, InstallmentsController, AiController, ChatController, FilesController, NotesController, PayoutsController, OrderingController],
+      controllers: [HealthController, PublicConfigController, AuthController, GamiyasController, InstallmentsController, AiController, ChatController, FilesController, NotesController, PayoutsController, OrderingController, MembershipController, GoalsController],
       providers: [
         { provide: CONFIG, useValue: config },
-        Db, Audit, AuthService, GamiyasService, InstallmentsService, AiService, ChatService, AssistantService, FilesService, NotesService, PayoutsService, OrderingService,
+        Db, Audit, AuthService, GamiyasService, InstallmentsService, AiService, ChatService, AssistantService, FilesService, NotesService, PayoutsService, OrderingService, MembershipService, GoalsService,
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },

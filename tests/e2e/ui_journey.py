@@ -68,6 +68,9 @@ def no_hscroll(page, where):
 
 def sign_in(page, phone, name):
     page.goto(BASE + "/")
+    page.locator("[data-testid=onboarding], main input").first.wait_for()
+    if page.get_by_test_id("onboarding").count():
+        page.get_by_role("button", name="تخطَّ").click()
     vw = page.viewport_size["width"]
     used = page.evaluate("document.querySelector('main').getBoundingClientRect().width")
     if used < vw * 0.7: problems.append(f"signed-out page uses {used}px of {vw}px")   # regression: sidebar column without a sidebar
@@ -122,26 +125,46 @@ def open_circle(page, name, tab=None):
         page.wait_for_load_state("networkidle")
 
 
-def create_circle(page, name, contribution, members, start, expect_tier):
+def sign_pledge(page, name, scope=None):
+    """Tick every clause of the payment pledge and type the registered name as the signature."""
+    box = (scope or page).get_by_test_id("pledge").last
+    for cb in box.locator(".pledge-clauses input[type=checkbox]").all():
+        cb.check()
+    box.get_by_label("اكتب اسمك الكامل توقيعاً").fill(name)
+
+
+def create_circle(page, name, contribution, members, start, expect_tier, signer="سارة", kind="جمعية الأصدقاء"):
+    """Wizard: type → details (server preview) → pledge. Leaves the page ready for «أنشئ الجمعية»."""
     nav(page, "جمعياتي")
     page.get_by_role("link", name="جمعية جديدة").click()
+    page.get_by_role("radio", name=re.compile(kind)).click()
+    page.get_by_role("button", name="التالي").click()
     page.get_by_label("اسم الجمعية").fill(name)
     page.get_by_label(re.compile("مساهمة كل عضو")).fill(contribution)
     page.get_by_label("عدد الأعضاء").fill(str(members))
     page.get_by_label("تاريخ أول دورة").fill(start)
     expect(page.locator(".tier").first).to_have_text(expect_tier)
     page.get_by_label("قرأت الاتفاقية وأوافق عليها").check()
+    page.get_by_role("button", name="التالي").click()
+    expect(page.get_by_test_id("pledge")).to_be_visible()
+    expect(page.get_by_role("button", name="أنشئ الجمعية")).to_be_disabled()     # not before the pledge is signed
+    sign_pledge(page, signer)
     return page
 
 
 def invite_and_join(org, joiners, circle_name):
     org.get_by_role("button", name="ادعُ أعضاء").click()
     link = org.get_by_test_id("invite-link").inner_text().strip()
-    for p in joiners:
+    for p, who in joiners:
         p.goto(link)
+        expect(p.get_by_test_id("invite-card")).to_contain_text(circle_name)
         p.get_by_label("قرأت الاتفاقية وأوافق عليها").check()
+        sign_pledge(p, who)
         p.get_by_role("button", name="انضم إلى الجمعية").click()
         expect(p.get_by_role("heading", name=circle_name)).to_be_visible()
+        cele = p.get_by_test_id("celebration")
+        expect(cele).to_contain_text("أهلاً بك في الجمعية")
+        cele.get_by_role("button", name="إغلاق").click()
 
 
 def run_draw(org, approver, circle_name):
@@ -178,6 +201,13 @@ with sync_playwright() as p:
     # 1. Sign-in (hero figure) and validation
     B.goto(BASE)
     expect(B.locator("html")).to_have_attribute("dir", "rtl")
+    expect(B.get_by_test_id("onboarding")).to_be_visible()             # first run: four-slide introduction
+    shot(B, "00-onboarding-phone")
+    for _ in range(3):
+        B.get_by_role("button", name="التالي").click()
+    expect(B.get_by_role("heading", name="تعهّد يحمي حق الجميع")).to_be_visible()
+    shot(B, "00b-onboarding-pledge-phone")
+    B.get_by_role("button", name="ابدأ الآن").click()
     welcome = B.get_by_role("img", name=re.compile("عضوة ترحّب بك"))
     expect(welcome).to_be_visible()                                    # animated sign-in illustration
     anim = lambda pg: pg.evaluate("getComputedStyle(document.querySelector('.ill-welcome .ill-badge')).animationName")
@@ -209,7 +239,7 @@ with sync_playwright() as p:
     shot(A, "04-create-medium")
     A.get_by_role("button", name="أنشئ الجمعية").click()
     expect(A.get_by_role("heading", name="جمعية الحي")).to_be_visible()
-    invite_and_join(A, [B, C], "جمعية الحي")
+    invite_and_join(A, [(B, "خالد"), (C, "نورة")], "جمعية الحي")
     winner = run_draw(A, B, "جمعية الحي")
     # B stayed on the circle page after approving: the wheel appears there by itself, with the same result
     expect(B.get_by_test_id("draw-stage")).to_be_visible(timeout=12000)
@@ -293,11 +323,13 @@ with sync_playwright() as p:
     create_circle(A, "جمعية الأولوية", "1000", 3, "2027-01-01", "صغيرة")
     A.get_by_role("button", name="أنشئ الجمعية").click()
     expect(A.get_by_role("heading", name="جمعية الأولوية")).to_be_visible()
-    invite_and_join(A, [B, C], "جمعية الأولوية")
+    invite_and_join(A, [(B, "خالد"), (C, "نورة")], "جمعية الأولوية")
     for pg, pref, when, reason in ((B, "أحتاجه مبكراً", "2027-01-20", "WEDDING"), (C, "أفضّل التأخير", None, "NONE")):
         open_circle(pg, "جمعية الأولوية")
         pg.get_by_test_id("payout-order").get_by_role("radio", name="بالأولوية").click()
         pg.get_by_role("radio", name=pref).click()
+        expect(pg.get_by_test_id("turn-picker").get_by_role("radio")).to_have_count(3)
+        expect(pg.get_by_test_id("no-fees")).to_contain_text("لا رسوم")
         if when:
             pg.get_by_label("أحتاج المبلغ قبل (اختياري)").fill(when)
         pg.get_by_label("السبب (اختياري)").select_option(reason)
@@ -371,7 +403,7 @@ with sync_playwright() as p:
     create_circle(A, "الجمعية الكبيرة", "20000", 3, "2027-02-01", "كبيرة")
     expect(A.get_by_test_id("tier-rule")).to_contain_text("سند لأمر")
     A.get_by_role("button", name="أنشئ الجمعية").click()
-    invite_and_join(A, [B, C], "الجمعية الكبيرة")
+    invite_and_join(A, [(B, "خالد"), (C, "نورة")], "الجمعية الكبيرة")
     for pg, ref in ((B, "NFTH-2001"), (C, "NFTH-2002")):
         open_circle(pg, "الجمعية الكبيرة")
         pg.get_by_label("ملف السند (PDF أو صورة)").set_input_files({"name": "note.pdf", "mimeType": "application/pdf", "buffer": PDF})
@@ -425,11 +457,12 @@ with sync_playwright() as p:
     expect(bottom).to_be_visible()
     expect(A.locator("nav.bottom-nav")).to_be_hidden()          # desktop uses the sidebar
     expect(A.locator("aside.sidebar")).to_be_visible()
-    h = bottom.get_by_role("link", name="المستشار").bounding_box()["height"]
+    h = bottom.get_by_role("link", name="أهدافي").bounding_box()["height"]
     if h < 44: problems.append(f"bottom-nav touch target {h}px < 44")
-    bottom.get_by_role("link", name="المستشار").click()
+    bottom.get_by_role("link", name="أهدافي").click()
+    B.get_by_role("tab", name="قدرتك على الادخار").click()
     expect(B.get_by_role("heading", name="كم تستطيع أن تدخر بجمعية؟")).to_be_visible()
-    expect(bottom.get_by_role("link", name="المستشار")).to_have_attribute("aria-current", "page")
+    expect(bottom.get_by_role("link", name="أهدافي")).to_have_attribute("aria-current", "page")
     shot(B, "15-bottom-nav-phone")
     no_hscroll(B, "advisor-phone")
     nav(B, "حسابي")
@@ -446,7 +479,68 @@ with sync_playwright() as p:
         B.screenshot(path=f"{SHOTS}/{name}.png")
     B.set_viewport_size(phone)
 
+    # 7c. v0.11: goals + smart planner → prefilled wizard; Friday circle with pledge; WhatsApp invite;
+    #     organizer edits the money terms → members re-confirm or leave; organizer removes a member with a reason
+    nav(A, "أهدافي")
+    A.get_by_role("tab", name="المخطط الذكي").click()
+    A.get_by_label("المبلغ الذي تحتاجه (ريال)").fill("24000")
+    A.get_by_label("كم تستطيع شهرياً؟ (اختياري)").fill("3000")
+    A.get_by_role("button", name="اقترح جمعيات").click()
+    expect(A.get_by_test_id("plan").first).to_contain_text("ريال")
+    shot(A, "30-planner")
+    A.get_by_role("link", name="أنشئ هذه الجمعية").first.click()
+    expect(A.get_by_text("عبّأنا الحقول من خطة المخطط الذكي")).to_be_visible()
+    expect(A.get_by_test_id("preview-pot")).to_contain_text("24,000")
+    nav(A, "أهدافي")
+    A.get_by_role("button", name="جمعية الحج والعمرة").click()
+    A.get_by_label("المبلغ المطلوب (ريال)").fill("20000")
+    A.get_by_role("button", name="احفظ الهدف").click()
+    expect(A.get_by_test_id("goal")).to_contain_text("20,000")
+    shot(A, "31-goals")
+    nav(A, "الرئيسية")
+    expect(A.get_by_test_id("hero")).to_be_visible()
+    A.get_by_test_id("start-types").get_by_role("link", name="جمعية الجمعة").click()
+    expect(A.get_by_text("جمعية الجمعة: القسط أسبوعي")).to_be_visible()
+    A.get_by_label("اسم الجمعية").fill("جمعية جمعة الحي")
+    A.get_by_label("عدد الأعضاء").fill("4")
+    A.get_by_label("قرأت الاتفاقية وأوافق عليها").check()
+    A.get_by_role("button", name="التالي").click()
+    expect(A.get_by_test_id("pledge-total")).to_contain_text("600")      # 3 weekly installments × 200
+    sign_pledge(A, "سارة")
+    shot(A, "32-pledge")
+    A.get_by_role("button", name="أنشئ الجمعية").click()
+    expect(A.get_by_role("heading", name="جمعية جمعة الحي")).to_be_visible()
+    invite_and_join(A, [(B, "خالد"), (C, "نورة")], "جمعية جمعة الحي")
+    expect(A.get_by_role("link", name="أرسل عبر واتساب")).to_have_attribute("href", re.compile(r"^https://wa\.me/\?text=.*%D8"))
+    shot(B, "33-join-phone")
+    open_circle(A, "جمعية جمعة الحي")
+    A.get_by_test_id("edit-circle").locator("summary").click()
+    A.get_by_test_id("edit-circle").get_by_label("مساهمة كل عضو").fill("300")
+    expect(A.get_by_test_id("edit-preview")).to_contain_text("سيُطلب من 2 أعضاء")
+    sign_pledge(A, "سارة", A.get_by_test_id("edit-preview"))
+    A.get_by_role("button", name="احفظ التعديلات").click()
+    expect(A.get_by_text("حُفظت التعديلات.")).to_be_visible()
+    open_circle(B, "جمعية جمعة الحي")
+    expect(B.get_by_test_id("reconfirm")).to_be_visible()
+    shot(B, "34-reconfirm-phone")
+    no_hscroll(B, "reconfirm-phone")
+    sign_pledge(B, "خالد", B.get_by_test_id("reconfirm"))
+    B.get_by_role("button", name="أوافق وأوقّع").click()
+    expect(B.get_by_test_id("reconfirm")).to_have_count(0)
+    open_circle(C, "جمعية جمعة الحي")
+    C.get_by_test_id("reconfirm").get_by_role("button", name="انسحب من الجمعية").click()
+    C.get_by_role("button", name="نعم، انسحب").click()
+    expect(C.get_by_role("heading", name="جمعياتي")).to_be_visible()
+    A.reload()
+    expect(A.get_by_text("نورة")).to_have_count(0)
+    A.get_by_role("button", name="أزل خالد").click()
+    A.get_by_label("سبب الإزالة (يراه الجميع)").fill("اتفقنا على جمعية عائلية")
+    A.get_by_role("button", name="أزل العضو").click()
+    expect(A.locator("ol.list li")).to_have_count(1)
+    shot(A, "35-managed")
+
     # 8. Session survives reload; sign-out clears it
+    nav(A, "الرئيسية")
     A.reload()
     expect(A.get_by_role("heading", name="أهلاً سارة")).to_be_visible()
     A.get_by_role("button", name="حسابي").click()
@@ -457,4 +551,4 @@ with sync_playwright() as p:
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("UI journey passed: draw wheel (invite all, countdown, live for the organizer, auto-shown to waiting members, result card in chat), animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")
+print("UI journey passed: onboarding (4 slides), circle-type wizard with the signed payment pledge, invite card + pledge before joining, WhatsApp invite, smart planner → prefilled wizard, goals, Friday circle, edit money terms → re-confirm / leave / remove with reason, turn picker with no fees, draw wheel (invite all, countdown, live for the organizer, auto-shown to waiting members, result card in chat), animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")

@@ -3,7 +3,7 @@ import { api } from '../api.ts';
 import { ErrorNote } from '../components.tsx';
 import { money, useT } from '../i18n.ts';
 
-export function Advisor() {
+export function Advisor({ embedded = false }: { embedded?: boolean }) {
   const { t, lang } = useT();
   const [f, setF] = useState({ monthlyIncome: '', monthlyExpenses: '', goalAmount: '', targetMonths: '' });
   const [res, setRes] = useState<any>(null);
@@ -26,7 +26,7 @@ export function Advisor() {
   return (
     <div className="narrow stack">
       <div className="stack-sm">
-        <h1>{t.advisorTitle}</h1>
+        {embedded ? <h2>{t.advisorTitle}</h2> : <h1>{t.advisorTitle}</h1>}
         <p className="muted">{t.advisorIntro}</p>
       </div>
       <form className="panel stack" onSubmit={submit}>

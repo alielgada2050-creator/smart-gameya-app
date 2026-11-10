@@ -72,3 +72,8 @@ export interface AuthUser { id: string; phone: string }
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => ctx.switchToHttp().getRequest().user);
 export const ClientIp = createParamDecorator((_: unknown, ctx: ExecutionContext): string | null => ctx.switchToHttp().getRequest().ip ?? null);
 export const CorrelationId = createParamDecorator((_: unknown, ctx: ExecutionContext): string => ctx.switchToHttp().getRequest().correlationId);
+/** IP and device of the request, kept with signed pledges as evidence. */
+export const SignerInfo = createParamDecorator((_: unknown, ctx: ExecutionContext) => {
+  const r = ctx.switchToHttp().getRequest();
+  return { ip: (r.ip as string | undefined) ?? null, userAgent: (r.headers?.['user-agent'] as string | undefined) ?? null };
+});
