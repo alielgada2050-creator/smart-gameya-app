@@ -73,7 +73,7 @@ export function Shell({ nav, current, signedIn, userName, skin, setSkin, toggleL
     return () => { clearInterval(h); removeEventListener('sg:resume', load); };
   }, [signedIn, current]);
 
-  const brand = <a className="brand" href="#/"><img src="/icon.svg" alt="" />{t.appName}</a>;
+  const brand = <a className="brand" href="#/"><img src={`${import.meta.env.BASE_URL}icon.svg`} alt="" />{t.appName}</a>;
   const links = (cls?: string) => nav.map((n) => (
     <a key={n.key} href={n.href} className={cls} aria-current={current === n.key ? 'page' : undefined}>
       <span className="pip"><Icon name={n.icon} /></span><span>{n.label}</span>
@@ -81,7 +81,7 @@ export function Shell({ nav, current, signedIn, userName, skin, setSkin, toggleL
   ));
 
   return (
-    <div className="app">
+    <div className={signedIn ? 'app' : 'app signed-out'}>
       {signedIn && (
         <aside className="sidebar">
           {brand}

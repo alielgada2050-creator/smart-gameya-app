@@ -13,11 +13,14 @@ import '@fontsource/ibm-plex-sans/latin-700.css';
 import './styles.css';
 import { initNative, isNative } from './platform.ts';
 
-createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+const mount = () => createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+// Demo build: the API runs inside the page (simulated data); the production bundle never contains it.
+if (import.meta.env.MODE === 'demo') import('./demo/install.ts').then((m) => m.install()).then(mount);
+else mount();
 
 // Installable app on desktop and phones. Production builds only, so development never serves a stale shell.
 // The Android/iOS apps bundle their files on the device, so they need no service worker.
-if (import.meta.env.PROD && !isNative && 'serviceWorker' in navigator) {
+if (import.meta.env.PROD && import.meta.env.MODE !== 'demo' && !isNative && 'serviceWorker' in navigator) {
   addEventListener('load', () => { navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}); });
 }
 

@@ -22,7 +22,13 @@ function useHash() {
       const next = () => { flushSync(() => setHash(location.hash.slice(1) || '/')); window.scrollTo(0, 0); };
       // Short cross-fade between screens where the browser supports View Transitions; instant otherwise or with reduced motion.
       const d = document as any;
-      if (d.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) d.startViewTransition(next); else next();
+      if (d.startViewTransition && !document.hidden && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        try {
+          const vt = d.startViewTransition(next);
+          // A skipped/aborted transition (background tab, slow update) must never surface as an error; the screen still changes.
+          for (const p of [vt.ready, vt.finished, vt.updateCallbackDone]) p?.catch?.(() => {});
+        } catch { next(); }
+      } else next();
     };
     addEventListener('hashchange', on);
     return () => removeEventListener('hashchange', on);

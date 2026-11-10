@@ -11,10 +11,14 @@ export default defineConfig(({ mode }) => {
       throw new Error(`VITE_API_ORIGIN must be the server origin over HTTPS (e.g. https://app.example.sa); got "${origin}"`);
     }
   }
+  const demo = mode === 'demo';
   return {
     plugins: [react()],
     server: { proxy: { '/api': 'http://localhost:3000' } },
-    // No source maps inside the store apps.
-    build: { outDir: 'dist', sourcemap: mode !== 'native' },
+    // Demo: a self-contained page (relative paths) whose API runs in the browser; financial-core's hashing via a shim.
+    base: demo ? './' : '/',
+    resolve: demo ? { alias: { 'node:crypto': new URL('./src/demo/crypto-shim.ts', import.meta.url).pathname } } : undefined,
+    // No source maps inside the store apps or the demo.
+    build: { outDir: demo ? 'dist-demo' : 'dist', sourcemap: mode !== 'native' && !demo },
   };
 });

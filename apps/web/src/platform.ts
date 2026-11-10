@@ -67,7 +67,9 @@ export async function tick() {
  * to the system share sheet so the user can open them in a PDF viewer. Nothing is written outside the app sandbox.
  */
 export async function presentFile(blob: Blob, name: string) {
-  if (!isNative) {
+  // The demo runs inside an embedded page where new tabs may be blocked: images open in the in-app viewer there too.
+  const inAppViewer = isNative || (import.meta.env.MODE === 'demo' && blob.type.startsWith('image/'));
+  if (!inAppViewer) {
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank', 'noopener');
     setTimeout(() => URL.revokeObjectURL(url), 60_000);

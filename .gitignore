@@ -3,3 +3,4 @@ dist/
 .env
 tests/e2e/__pycache__/
 dist-native/
+apps/web/dist-demo/

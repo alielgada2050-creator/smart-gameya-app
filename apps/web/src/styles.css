@@ -103,6 +103,8 @@ button, a, select, summary, [role='tab'], input[type='checkbox'], input[type='fi
 
 @media (min-width: 1024px) {
   .app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+  /* signed out there is no sidebar: one full-width column (sign-in, join links) */
+  .app.signed-out { grid-template-columns: minmax(0, 1fr); }
   .bottom-nav { display: none; }
   .sidebar {
     display: flex; flex-direction: column; gap: var(--s2); position: sticky; top: 0; height: 100dvh; overflow-y: auto;
@@ -121,6 +123,7 @@ button, a, select, summary, [role='tab'], input[type='checkbox'], input[type='fi
   .sidebar .side-foot { margin-top: auto; display: grid; gap: var(--s2); }
   .sidebar .logo-strip { flex-wrap: wrap; }
   .topbar .brand, .topbar .logo-strip { display: none; }
+  .app.signed-out .topbar .brand { display: flex; }
   .page { padding-bottom: var(--s7); }
 }
 @media (min-width: 1440px) { :root { --sidebar-w: 272px; } }
@@ -416,3 +419,9 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
   @keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
 }
 [dir='rtl'] .reveal-list li { --dir: -1; }
+/* "auto" skin on a dark device: the illustrations follow too (not only the explicit dark skin). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-skin='light']):not([data-skin='bright']) {
+    --ill-blob: #1B2A44; --ill-line: #0B1120; --ill-cloth: #3D5A92; --ill-thobe: #F1F5F9; --ill-badge: #E8EEF8; --ill-plus: #5B7BB8;
+  }
+}

@@ -23,6 +23,22 @@ def _png(w=48, h=24, rgb=(47, 102, 144)):
 
 PNG = _png()
 _rc = [0]
+RECORDED = {}
+def record(page, who):
+    """RECORD_API=file: keep real API response samples (used to build the in-browser demo). Off by default."""
+    if not os.environ.get("RECORD_API"): return
+    import json as _j
+    def on(r):
+        if "/api/v1/" not in r.url or "json" not in (r.headers.get("content-type") or ""): return
+        key = r.request.method + " " + re.sub(r"[0-9a-f]{8}-[0-9a-f-]{27}", ":id", r.url.split("/api/v1")[1].split("?")[0])
+        try: body = r.json()
+        except Exception: return
+        req = r.request.post_data
+        RECORDED.setdefault(key, [])
+        if len(RECORDED[key]) < 3: RECORDED[key].append({"who": who, "status": r.status, "req": req, "res": body})
+        with open(os.environ["RECORD_API"], "w") as f: _j.dump(RECORDED, f, ensure_ascii=False, indent=1)
+    page.on("response", on)
+
 def receipt_png():
     """Every real receipt is a different file; the app refuses to reuse one receipt for two payments."""
     _rc[0] += 1
@@ -52,6 +68,9 @@ def no_hscroll(page, where):
 
 def sign_in(page, phone, name):
     page.goto(BASE + "/")
+    vw = page.viewport_size["width"]
+    used = page.evaluate("document.querySelector('main').getBoundingClientRect().width")
+    if used < vw * 0.7: problems.append(f"signed-out page uses {used}px of {vw}px")   # regression: sidebar column without a sidebar
     page.get_by_label("رقم الجوال").fill(phone)
     page.get_by_role("button", name="أرسل الرمز").click()
     code = re.search(r"\d{6}", page.get_by_test_id("dev-code").inner_text()).group(0)
@@ -133,6 +152,7 @@ with sync_playwright() as p:
     A = browser.new_context(viewport=desk, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()   # organizer, desktop
     B = browser.new_context(viewport=phone, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()  # member, phone
     C = browser.new_context(viewport=phone, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()  # member, phone
+    record(A, "A"); record(B, "B"); record(C, "C")
     for pg, w in ((A, "A"), (B, "B"), (C, "C")):
         watch(pg, w)
 
@@ -338,6 +358,7 @@ with sync_playwright() as p:
     shot(A, "09-large-pending")
 
     R = browser.new_context(viewport=desk, locale="ar-SA", timezone_id="Asia/Riyadh").new_page()
+    record(R, "R")
     watch(R, "Reviewer")
     sign_in(R, "0500000900", "مراجعة المنصة")
     nav(R, "الإدارة")
