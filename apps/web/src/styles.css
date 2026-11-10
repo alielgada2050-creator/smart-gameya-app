@@ -346,6 +346,7 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
   --ill-blob: #E6ECF6; --ill-line: #1E293B; --ill-skin: #F2C6A0; --ill-cloth: #24385F; --ill-thobe: #FFFFFF; --ill-fold: #CBD5E1;
   --ill-gold: #FBBF24; --ill-gold-deep: #F59E0B; --ill-badge: #FFFFFF; --ill-green: #16A34A; --ill-green-t: #DCFCE7;
   --ill-blue: #2563EB; --ill-blue-t: #DBEAFE; --ill-plus: #6B8BC9; --ill-blush: #F59E9E; --ill-mouth: #9A3412; --ill-beard: #3B2A20;
+  --ill-hair: #2B1D16; --ill-teal: #0F6B63; --ill-pink: #E0607E; --ill-ribbon: #F2A93B; --ill-collar: #FFFFFF;
   --ease-out: cubic-bezier(.16, 1, .3, 1); --ease-in: cubic-bezier(.7, 0, .84, 0); --dur-enter: 280ms; --dur-exit: 180ms;
 }
 :root[data-skin='dark'] {
@@ -366,6 +367,7 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
 .ill-blue { fill: var(--ill-blue); } .ill-blush { fill: var(--ill-blush); opacity: .55; }
 .ill-mouth { fill: var(--ill-mouth); }
 .ill-beard { fill: var(--ill-beard); }
+.ill-hair { fill: var(--ill-hair); } .ill-teal { fill: var(--ill-teal); } .ill-pink { fill: var(--ill-pink); } .ill-ribbon { fill: var(--ill-ribbon); } .ill-collar { fill: var(--ill-collar); }
 .ill-agal { fill: none; stroke: var(--ill-line); stroke-width: 4.5; stroke-linecap: round; }
 .ill-ghutra-fold { stroke: var(--ill-fold); stroke-width: 2; stroke-linecap: round; }
 .ill-plus { fill: none; stroke: var(--ill-plus); stroke-width: 2.4; stroke-linecap: round; }
@@ -381,7 +383,8 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
   /* Sign-in: one orchestrated entrance (badges pop in around her), then a calm idle loop. */
   .ill-welcome .ill-badge { animation: ill-pop 520ms var(--ease-out) both, ill-bob 4.8s ease-in-out infinite;
     animation-delay: calc(240ms + var(--i) * 90ms), calc(900ms + var(--i) * -0.8s); }
-  .ill-welcome .ill-person { animation: ill-rise 600ms var(--ease-out) both; }
+  .ill-welcome .ill-person { animation: ill-swap 560ms var(--ease-out) both; }
+  @keyframes ill-swap { from { opacity: 0; transform: translateX(calc(var(--swap-dir, 1) * 26px)) translateY(10px) scale(.96); } }
   .ill-welcome .ill-wave { animation: ill-wave 2.6s ease-in-out 900ms infinite; }
   .ill-spark { animation: ill-twinkle 2.8s ease-in-out infinite; animation-delay: calc(var(--i) * -0.55s); }
   /* Milestone: coins burst up once, the member cheers once. */
@@ -617,3 +620,52 @@ input.signature { font-family: var(--font-display); font-size: 1.15rem; border-s
 }
 .wiz-actions { display: flex; justify-content: flex-end; }
 @media (max-width: 640px) { .wiz-actions .btn { width: 100%; } }
+
+/* sign-in greeter slider (v0.12) */
+.welcome-slider { display: grid; gap: var(--s2); justify-items: center; }
+.welcome-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+.welcome-dot { min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-weight: 600; font-size: .85rem;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+.welcome-dot.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.welcome-pause { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.welcome-line { margin: 0; }
+[dir='rtl'] .welcome-slider { --swap-dir: -1; }
+
+/* direct invitations (v0.12) */
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 320px; overflow: auto; }
+.pick-list li { border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; }
+.pick-list li:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent-tint) 55%, transparent); }
+.pick-list .check { align-items: center; }
+.avatar-sm { display: inline-grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent-tint); color: var(--accent-strong); font-weight: 700; }
+.invites-card { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+textarea { font: inherit; }
+
+/* ==========================================================================
+   v0.12 — clearer type. Arabic reads better a size up with more line gap and no tracking; one scale for the whole app.
+   Display (Alexandria): page titles, section titles, money figures. Text (IBM Plex Sans Arabic): everything else.
+   Nothing under 13px; labels and controls 15–17px; body 17px on phones and desktops alike.
+   ========================================================================== */
+:root { --fs-xs: .8125rem; --fs-sm: .9375rem; --fs-base: 1.0625rem; --fs-h3: 1.0625rem; --fs-h2: 1.25rem; --fs-h1: clamp(1.6rem, 1.35rem + 1.1vw, 2.1rem); }
+body { font-size: var(--fs-base); line-height: 1.75; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+[dir='rtl'] :not(.code):not(.code *) { letter-spacing: 0 !important; }
+h1, h2, h3 { line-height: 1.4; }
+h1 { font-size: var(--fs-h1); }
+h2 { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; }
+h3 { font-size: var(--fs-h3); font-weight: 700; }
+p { max-width: 72ch; }
+.small { font-size: var(--fs-sm); line-height: 1.65; }
+.muted { color: var(--muted); }
+label { font-size: var(--fs-sm); font-weight: 600; }
+input, select, textarea { font-size: var(--fs-base); }
+.btn { font-size: var(--fs-sm); font-weight: 700; }
+.btn-xs, .pill, .tier, .chip, .welcome-dot, .hero-chip, .stepper li { font-size: var(--fs-xs); }
+.bottom-nav a { font-size: var(--fs-xs); }
+.msg .who, .msg time { font-size: var(--fs-xs); }
+.msg.SYSTEM, .agreement, .reveal-list li { font-size: var(--fs-sm); }
+.kv dt { font-size: var(--fs-sm); }
+.kv dd, .figure, .plan-figures strong, .invite-figures strong { font-variant-numeric: tabular-nums lining-nums; }
+.figure, .plan-figures strong { font-family: var(--font-display); }
+.ring .bead-num { font-size: 13px; font-weight: 700; }
+.ring .center-small { font-size: 14px; }
+.pledge-clauses .check { font-size: var(--fs-sm); line-height: 1.8; }
+.code { font-size: var(--fs-xs); }

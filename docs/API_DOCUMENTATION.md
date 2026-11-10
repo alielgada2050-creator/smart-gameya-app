@@ -132,3 +132,11 @@
 | `GET/POST /me/goals` · `POST /me/goals/:id` · `POST /me/goals/:id/remove` | الأهداف وربطها بجمعية والتقدّم. |
 | `POST /ai/circle-plan` | المخطط الذكي: `{targetAmount, neededBy?, people?, monthlyBudget?, frequency, category}` ← حتى 3 خطط. |
 | `GET /gamiyas/:id/order` | يعيد الآن `cycleDates` لبطاقات «اختر دورك». |
+
+## 0.12.0 — الدعوة المباشرة
+| الطريقة والمسار | الوصف |
+|---|---|
+| `GET /gamiyas/:id/invite-suggestions` | من يشارك المنظم جمعيات أخرى وليس عضواً هنا (للمنظم). |
+| `POST /gamiyas/:id/invitations/direct {phones[]}` | أرقام E.164 (حتى 30). يرد `{code, notified[], toShare[], skipped[], seatsLeft}`. |
+| `GET /me/invitations` | دعواتي المعلّقة (لحسابي أو لرقمي قبل التسجيل). |
+| `POST /me/invitations/:id/decline` | اعتذار، ويصل المنظم إشعار. |

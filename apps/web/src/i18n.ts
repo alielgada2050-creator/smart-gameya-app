@@ -165,6 +165,21 @@ const ar = {
     range: (a: number, b: number) => (a === b ? `الدور ${a}` : `الأدوار ${a}–${b}`),
   },
   share: { whatsapp: 'أرسل عبر واتساب', text: (n: string, link: string) => `أدعوك للانضمام إلى «${n}» على جمعيتي. افتح الرابط واقرأ الشروط ثم انضم: ${link}` },
+  greet: {
+    who: { woman: 'عضوة', man: 'عضو', youth: 'شاب', girl: 'بنت' } as Record<string, string>,
+    art: (w: string) => `${w === 'woman' ? 'عضوة ترحّب بك' : w === 'man' ? 'عضو يرحّب بك' : w === 'youth' ? 'شاب يرحّب بك' : 'بنت ترحّب بك'} وحولها مزايا التطبيق: القرعة، الاعتماد، الإيصالات، المحادثة، التذكيرات، الخصوصية`,
+    label: 'أعضاء جمعيتي', show: (w: string) => `اعرض: ${w}`, pause: 'أوقف الحركة', play: 'شغّل الحركة',
+    line: 'الأم والأب والشباب والبنات: جمعية واحدة للعائلة كلها',
+  },
+  direct: {
+    title: 'ادعُ مباشرة', intro: (n: number) => `تصل الدعوة فوراً داخل التطبيق لمن لديه حساب، ويُجهَّز لغيره رابط واتساب. المقاعد المتبقية: ${n}.`,
+    people: 'أشخاص تشاركهم جمعيات أخرى', all: (n: number) => `اختر الكل (${n})`, none: 'ألغِ التحديد', via: (c: string) => `من «${c}»`,
+    phones: 'أو اكتب أرقام الجوال', hint: 'افصل بين الأرقام بمسافة أو فاصلة. مثال: 0501234567', bad: (x: string) => `أرقام غير صحيحة: ${x}`,
+    send: (n: number) => (n ? `أرسل الدعوة إلى ${n}` : 'أرسل الدعوة'), notified: (x: string) => `وصلت الدعوة داخل التطبيق إلى: ${x}`,
+    notRegistered: 'هذه الأرقام ليس لها حساب بعد. أرسل لها الدعوة عبر واتساب، وستظهر لها في التطبيق عند التسجيل بالرقم نفسه:',
+    skipped: (n: number) => `تُخطّي ${n} (عضو حالياً أو رقمك أنت).`,
+    forYou: (n: number) => (n === 1 ? 'دعوة لك' : `دعوات لك (${n})`), from: (n: string) => `من ${n}`, review: 'راجع وانضم', decline: 'اعتذر',
+  },
   sep: '، ', sar: 'ريال', back: 'رجوع', retry: 'أعد المحاولة', loading: 'جارٍ التحميل', error: 'حدث خطأ', cancel: 'إلغاء', save: 'احفظ',
 };
 type Dict = typeof ar;
@@ -332,6 +347,21 @@ const en: Dict = {
     range: (a, b) => (a === b ? `Turn ${a}` : `Turns ${a}–${b}`),
   },
   share: { whatsapp: 'Send on WhatsApp', text: (n, link) => `Join “${n}” on Jamiyati. Open the link, read the terms and join: ${link}` },
+  greet: {
+    who: { woman: 'Woman', man: 'Man', youth: 'Young man', girl: 'Girl' },
+    art: (w) => `${w === 'woman' ? 'A woman' : w === 'man' ? 'A man' : w === 'youth' ? 'A young man' : 'A girl'} welcoming you, surrounded by the app’s features: draw, approval, receipts, chat, reminders, privacy`,
+    label: 'Jamiyati members', show: (w) => `Show: ${w}`, pause: 'Pause animation', play: 'Play animation',
+    line: 'Mothers, fathers, young men and girls: one circle for the whole family',
+  },
+  direct: {
+    title: 'Invite directly', intro: (n) => `People with an account get the invitation in the app at once; for others we prepare a WhatsApp message. Seats left: ${n}.`,
+    people: 'People you share other circles with', all: (n) => `Select all (${n})`, none: 'Clear', via: (c) => `from “${c}”`,
+    phones: 'Or type mobile numbers', hint: 'Separate numbers with spaces or commas. Example: 0501234567', bad: (x) => `Invalid numbers: ${x}`,
+    send: (n) => (n ? `Send invitation to ${n}` : 'Send invitation'), notified: (x) => `Invitation delivered in the app to: ${x}`,
+    notRegistered: 'These numbers have no account yet. Send them the invitation on WhatsApp; it will also appear in the app when they sign up with that number:',
+    skipped: (n) => `Skipped ${n} (already a member, or your own number).`,
+    forYou: (n) => (n === 1 ? 'An invitation for you' : `Invitations for you (${n})`), from: (n) => `from ${n}`, review: 'Review and join', decline: 'Decline',
+  },
   sep: ', ', sar: 'SAR', back: 'Back', retry: 'Try again', loading: 'Loading', error: 'Something went wrong', cancel: 'Cancel', save: 'Save',
 };
 

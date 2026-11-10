@@ -9,6 +9,7 @@ import { PayoutOrder } from './Ordering.tsx';
 import { WEB_ORIGIN, isNative, shareLink } from '../platform.ts';
 import { openDrawStage } from '../lottery/host.tsx';
 import type { DrawResult } from '../lottery/DrawStage.tsx';
+import { DirectInvite } from './DirectInvite.tsx';
 import { CircleTitleBadge, EditCircle, LeaveButton, MemberExtras, ReconfirmTerms, canChange } from './Manage.tsx';
 
 export function Circle({ id, tab }: { id: string; tab: string }) {
@@ -92,6 +93,7 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
           <div className="stack">
             {c.tier === 'LARGE' && <LargeNotes id={id} circle={c} onChange={reloadAll} />}
             {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <Invite id={id} name={c.name} remaining={c.memberCount - c.joined} />}
+            {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <DirectInvite id={id} name={c.name} remaining={c.memberCount - c.joined} />}
             {c.myRole === 'MANAGER' && canChange(c, lottery.data) && <EditCircle key={`${c.termsVersion}-${c.name}-${c.memberCount}`} id={id} circle={c} onSaved={reloadAll} />}
             {c.myRole !== 'MANAGER' && c.myMemberStatus === 'ACTIVE' && canChange(c, lottery.data) && <div className="row-start"><LeaveButton id={id} /></div>}
             {lottery.data && (

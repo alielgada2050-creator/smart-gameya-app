@@ -131,3 +131,12 @@ test('no providers configured → template narration, app keeps working', async 
   assert.equal(n.source, 'template');
   assert.match(n.text, /12 أعضاء/);
 });
+
+test('chainFromEnv: custom OpenAI-compatible gateway (e.g. a local FCC proxy) and NVIDIA NIM', () => {
+  const none = chainFromEnv({ AI_PROVIDERS: 'custom' });
+  assert.equal(none.chain.providers.length, 0);
+  assert.match(none.skipped[0], /AI_BASE_URL_CUSTOM/);
+  const ok = chainFromEnv({ AI_PROVIDERS: 'custom,nvidia', AI_BASE_URL_CUSTOM: 'http://127.0.0.1:8082/v1', AI_MODEL_CUSTOM: 'gemini/models/gemini-3.5-flash-lite', NVIDIA_NIM_API_KEY: 'k' });
+  assert.deepEqual(ok.chain.providers.map((p) => p.name), ['custom', 'nvidia']);
+  assert.throws(() => chainFromEnv({ AI_PROVIDERS: 'custom', AI_BASE_URL_CUSTOM: 'http://gateway.example/v1', AI_MODEL_CUSTOM: 'm' }), /https/);
+});

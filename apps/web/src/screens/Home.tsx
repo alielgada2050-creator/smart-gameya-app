@@ -4,6 +4,7 @@ import { date, money, useT } from '../i18n.ts';
 import { CIRCLE_TYPES, CategoryBadge } from '../categories.tsx';
 import { Obligations } from './Obligations.tsx';
 import { GoalProgress } from './Goals.tsx';
+import { MyInvitations } from './DirectInvite.tsx';
 
 const riyadhToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
 
@@ -37,6 +38,7 @@ export function Home({ user }: { user: SessionUser }) {
             <a className="btn btn-ghost-dark" href="#/join">{t.join}</a>
           </span>
         </section>
+        <MyInvitations />
         <Obligations />
         <section className="stack-sm">
           <div className="row"><h2>{t.circles}</h2>{circles.data && circles.data.length > 6 && <a href="#/circles">{t.circles}</a>}</div>

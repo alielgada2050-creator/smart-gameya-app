@@ -30,6 +30,7 @@ export interface DB {
   notes: { id: string; gamiyaId: string; memberId: string; fileId: string; reference: string; amount: string; status: string }[];
   payoutMethods: { id: string; userId: string; country: string; kind: string; value: string; last4: string; isDefault: boolean }[];
   pledges: { id: string; userId: string; gamiyaId: string; termsVersion: number; pledgeVersion: string; textSha256: string; typedName: string; terms: any; signedAt: string }[];
+  directInvites: { id: string; gamiyaId: string; code: string; phone: string; invitedBy: string; status: string; createdAt: string }[];
   goals: { id: string; userId: string; category: string; title: string; targetAmount: string; currency: string; targetDate: string | null; gamiyaId: string | null; status: string; createdAt: string }[];
 }
 
@@ -60,7 +61,7 @@ function doc(title: string, lines: string[], accent: string) {
 export function seed(): DB {
   const db: DB = {
     seq: 0, seeded: [], users: [], otp: {}, circles: [], members: [], cycles: [], installments: [], disputes: [], files: [], invitations: [], chat: [], notifications: [],
-    lottery: {}, priority: {}, proposals: [], votes: [], notes: [], payoutMethods: [], pledges: [], goals: [],
+    lottery: {}, priority: {}, proposals: [], votes: [], notes: [], payoutMethods: [], pledges: [], goals: [], directInvites: [],
     agreement: { id: '6a7f9de2-90e9-470d-8e95-12181b804a6e', template_code: 'JOIN', version: '1.0', locale: 'ar', body_sha256: 'demo', body: agreementBody },
   };
   const U = (fullName: string, phone: string, platformRole = 'NONE') => { const u = { id: uuid(), phone, fullName, platformRole }; db.users.push(u); db.seeded.push(u.id); return u.id; };
@@ -179,6 +180,10 @@ export function seed(): DB {
   const g5 = circle({ name: 'جمعية الجمعة', contribution: '200.00', memberCount: 6, startDate: fri, createdAt: at(-1), frequency: 'WEEKLY', category: 'FRIDAY' });
   join(g5, noura, 'MANAGER', at(-1)); join(g5, khalid, 'MEMBER', at(-1, 30));
   db.invitations.push({ code: 'JUMAA26', gamiyaId: g5.id, maxUses: 4, uses: 0, expiresAt: at(30) });
+  // نورة invited سارة directly: it waits on سارة's home page under «دعوات لك»
+  db.invitations.push({ code: 'JUMAA-SARA', gamiyaId: g5.id, maxUses: 1, uses: 0, expiresAt: at(7) });
+  db.directInvites.push({ id: uuid(), gamiyaId: g5.id, code: 'JUMAA-SARA', phone: '+966551110001', invitedBy: noura, status: 'PENDING', createdAt: at(-1, 60) });
+  note(sara, g5.id, 'ACTION_NEEDED', 'نورة تدعوك للانضمام إلى «جمعية الجمعة». افتح «دعوات لك» لمراجعة الشروط.', at(-1, 60));
   chat(g5.id, 'SYSTEM', 'أُنشئت الجمعية (صغيرة). القبض لكل دورة 1200.00 SAR، كل جمعة.', at(-1));
 
   // ── goals ──

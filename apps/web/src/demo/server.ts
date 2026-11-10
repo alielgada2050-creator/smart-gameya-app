@@ -23,7 +23,7 @@ const conflict = (code: string, m = code) => new DemoError(409, code, m);
 const forbidden = (m = 'forbidden') => new DemoError(403, 'FORBIDDEN', m);
 const notFound = (what = 'resource') => new DemoError(404, 'NOT_FOUND', `${what} not found`);
 
-const KEY = 'sg.demo.v2';
+const KEY = 'sg.demo.v3';
 let db: DB;
 export function load(): DB {
   try { const raw = localStorage.getItem(KEY); if (raw) { db = JSON.parse(raw); return db; } } catch { /* storage unavailable */ }
@@ -340,6 +340,7 @@ on('POST', '/invitations/:code/accept', ({ me, params, body }) => {
   signPledge(me, g.id, pledgeTerms(g, user(manager(g.id).userId).fullName, user(me).fullName), body.pledge);
   if (prev) Object.assign(prev, { status: 'ACTIVE', joinedAt: now(), payoutPosition: null });
   else db.members.push({ id: uuid(), gamiyaId: g.id, userId: me, role: 'MEMBER', payoutPosition: null, joinedAt: now(), status: 'ACTIVE' });
+  for (const d of db.directInvites) if (d.gamiyaId === g.id && d.phone === user(me).phone && d.status === 'PENDING') d.status = 'ACCEPTED';
   inv.uses++;
   post(g.id, 'SYSTEM', `انضم ${user(me).fullName} إلى الجمعية ووقّع إقرار وتعهّد السداد.`, null, 'member', me);
   if (count + 1 === g.memberCount) {
@@ -483,6 +484,60 @@ on('POST', '/gamiyas/:id/members/:memberId/remove', ({ me, params, body }) => {
 on('GET', '/me/pledges', ({ me }) => db.pledges.filter((p) => p.userId === me).sort((a, b) => b.signedAt.localeCompare(a.signedAt)).map((p) => ({
   id: p.id, gamiyaId: p.gamiyaId, circleName: db.circles.find((c) => c.id === p.gamiyaId)?.name ?? '', termsVersion: p.termsVersion, pledgeVersion: p.pledgeVersion,
   textSha256: p.textSha256, typedName: p.typedName, signedAt: p.signedAt, totalCommitment: p.terms.totalCommitment, currency: p.terms.currency })));
+
+// ---------- direct invitations (mirrors apps/api/src/gamiyas/direct.ts) ----------
+on('GET', '/gamiyas/:id/invite-suggestions', ({ me, params }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role !== 'MANAGER') throw forbidden('only the circle manager can do this');
+  const seen = new Map<string, any>();
+  for (const mine of db.members.filter((x) => x.userId === me && x.status !== 'WITHDRAWN' && x.gamiyaId !== g.id)) {
+    for (const o of membersOf(mine.gamiyaId)) {
+      if (o.userId === me || seen.has(o.userId) || membersOf(g.id).some((x) => x.userId === o.userId)) continue;
+      const u = user(o.userId);
+      seen.set(o.userId, { userId: u.id, fullName: u.fullName, phone: u.phone, phoneLast4: u.phone.slice(-4), via: db.circles.find((c) => c.id === mine.gamiyaId)!.name,
+        invited: db.directInvites.find((d) => d.gamiyaId === g.id && d.phone === u.phone)?.status ?? null });
+    }
+  }
+  return [...seen.values()];
+});
+on('POST', '/gamiyas/:id/invitations/direct', ({ me, params, body }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role !== 'MANAGER') throw forbidden('only the circle manager can do this');
+  if (g.status !== 'RECRUITING') throw conflict('NOT_RECRUITING', 'circle is not accepting members');
+  const phones: string[] = [...new Set<string>(body.phones ?? [])];
+  if (!phones.length || phones.some((p) => !/^(\+9665\d{8}|\+201[0125]\d{8}|\+9715\d{8})$/.test(p))) throw bad('VALIDATION', 'phones must be E.164 mobile numbers');
+  const code = 'DI' + uuid().replace(/-/g, '').slice(0, 10);
+  db.invitations.push({ code, gamiyaId: g.id, maxUses: phones.length, uses: 0, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString() });
+  const notified: any[] = [], toShare: string[] = [], skipped: any[] = [];
+  for (const p of phones) {
+    const u = db.users.find((x) => x.phone === p);
+    if (u?.id === me) { skipped.push({ phone: p, reason: 'SELF' }); continue; }
+    if (u && membersOf(g.id).some((x) => x.userId === u.id)) { skipped.push({ phone: p, reason: 'ALREADY_MEMBER' }); continue; }
+    db.directInvites = db.directInvites.filter((d) => !(d.gamiyaId === g.id && d.phone === p));
+    db.directInvites.push({ id: uuid(), gamiyaId: g.id, code, phone: p, invitedBy: me, status: 'PENDING', createdAt: now() });
+    if (u) { notify([u.id], { gamiyaId: g.id, kind: 'ACTION_NEEDED', body: `${user(me).fullName} يدعوك للانضمام إلى «${g.name}». افتح «دعوات لك» لمراجعة الشروط.` }); notified.push({ phone: p, fullName: u.fullName }); }
+    else toShare.push(p);
+  }
+  if (notified.length) post(g.id, 'SYSTEM', `دعا المنظم ${notified.length} أشخاص مباشرة: ${notified.map((n) => n.fullName).join('، ')}.`, null, 'gamiya', g.id);
+  return { code, notified, toShare, skipped, seatsLeft: Math.max(0, g.memberCount - membersOf(g.id).length) };
+});
+on('GET', '/me/invitations', ({ me }) => {
+  const phone = user(me).phone;
+  return db.directInvites.filter((d) => d.status === 'PENDING' && d.phone === phone).flatMap((d) => {
+    const g = db.circles.find((c) => c.id === d.gamiyaId)!;
+    const inv = db.invitations.find((i) => i.code === d.code);
+    if (g.status !== 'RECRUITING' || !inv || inv.uses >= inv.maxUses || membersOf(g.id).some((x) => x.userId === me)) return [];
+    return [{ id: d.id, code: d.code, gamiyaId: g.id, name: g.name, category: g.category ?? 'OTHER', currency: g.currency, contribution: g.contribution, memberCount: g.memberCount,
+      frequency: g.frequency, startDate: g.startDate, organizerName: user(d.invitedBy).fullName, invitedAt: d.createdAt }];
+  });
+});
+on('POST', '/me/invitations/:id/decline', ({ me, params }) => {
+  const d = db.directInvites.find((x) => x.id === params[0] && x.phone === user(me).phone && x.status === 'PENDING');
+  if (!d) throw notFound('invitation');
+  d.status = 'DECLINED';
+  notify([d.invitedBy], { gamiyaId: d.gamiyaId, kind: 'INFO', body: `اعتذر ${user(me).fullName} عن الدعوة.` });
+  return { declined: true };
+});
 
 // ---------- goals and the circle planner (mirrors apps/api/src/goals/goals.ts) ----------
 function goalView(gl: DB['goals'][number]) {

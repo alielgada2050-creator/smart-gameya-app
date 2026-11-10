@@ -42,3 +42,6 @@ erDiagram
 - `gamiyas.category` (FAMILY, FRIENDS, WORK, SCHOOL, HAJJ, WEDDING, RAMADAN, FRIDAY, TRAVEL, HOME, CAR, OTHER) و`gamiyas.terms_version` (يرتفع مع كل تغيير مالي).
 - `pledges`: إلحاقي فقط (trigger `forbid_mutation`)، فريد لكل (مستخدم، جمعية، إصدار شروط): بصمة النص، الاسم المكتوب، الشروط JSON، IP، الجهاز، الوقت.
 - `goals`: هدف المستخدم ومبلغه وموعده وربطه الاختياري بجمعية، والحالة ACTIVE/DONE/ARCHIVED.
+
+## الترحيل 007 — الدعوات المباشرة
+- `direct_invitations`: الجمعية، رمز الدعوة، الرقم (E.164)، المستخدم إن كان مسجلاً، المرسل، الحالة PENDING/ACCEPTED/DECLINED، فريد لكل (جمعية، رقم)؛ إعادة الدعوة تجدّدها.

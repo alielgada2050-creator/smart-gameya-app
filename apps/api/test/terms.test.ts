@@ -202,3 +202,53 @@ describe('goals and the circle planner', () => {
     assert.equal((await api(U, 'get', '/api/v1/me/goals')).body.length, 0);
   });
 });
+
+describe('direct invitations', () => {
+  let O: Person, K: Person, N: Person, gid: string, other: string;
+  before(async () => {
+    O = await login('ليلى', '+966500000621'); K = await login('كريم', '+966500000622'); N = await login('نوف', '+966500000623');
+    const ag = (await api(O, 'get', '/api/v1/agreements/current')).body.id;
+    const mk = async (name: string) => {
+      const b = { name, country: 'SA', frequency: 'MONTHLY', contribution: '500', memberCount: 4, startDate: '2027-02-01' };
+      const pv = (await api(O, 'post', '/api/v1/gamiyas/pledge-preview', b)).body;
+      return (await api(O, 'post', '/api/v1/gamiyas', { ...b, agreementVersionId: ag, pledge: sign(O, pv) })).body.id;
+    };
+    other = await mk('جمعية سابقة'); gid = await mk('جمعية جديدة للعائلة');
+    // كريم shares the earlier circle with ليلى
+    const code = (await api(O, 'post', `/api/v1/gamiyas/${other}/invitations`, { maxUses: 3 })).body.code;
+    const t = (await api(K, 'get', `/api/v1/invitations/${code}`)).body.pledge;
+    assert.equal((await api(K, 'post', `/api/v1/invitations/${code}/accept`, { agreementVersionId: ag, pledge: sign(K, t) })).status, 200);
+  });
+
+  test('organizer sees people from her other circles and invites them directly with unregistered numbers', async () => {
+    const sug = (await api(O, 'get', `/api/v1/gamiyas/${gid}/invite-suggestions`)).body;
+    assert.deepEqual(sug.map((s: any) => s.fullName), ['كريم']);
+    assert.equal(sug[0].via, 'جمعية سابقة');
+    assert.equal((await api(K, 'get', `/api/v1/gamiyas/${other}/invite-suggestions`)).status, 403, 'organizer only');
+    const r = await api(O, 'post', `/api/v1/gamiyas/${gid}/invitations/direct`, { phones: [sug[0].phone, '+966500000623', '+966500000699', '+966500000621'] });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.notified.map((n: any) => n.fullName).sort(), ['كريم', 'نوف']);
+    assert.deepEqual(r.body.toShare, ['+966500000699']);
+    assert.deepEqual(r.body.skipped, [{ phone: '+966500000621', reason: 'SELF' }]);
+    assert.equal((await api(O, 'post', `/api/v1/gamiyas/${gid}/invitations/direct`, { phones: ['0500000623'] })).status, 400, 'E.164 only');
+  });
+
+  test('the invited person sees it in the app, can decline or join with the pledge; a later sign-up with the number sees it too', async () => {
+    const mineK = (await api(K, 'get', '/api/v1/me/invitations')).body;
+    assert.equal(mineK.length, 1);
+    assert.equal(mineK[0].organizerName, 'ليلى');
+    const notes = (await api(K, 'get', '/api/v1/me/notifications')).body;
+    assert.ok((notes.items ?? notes).some((x: any) => /يدعوك للانضمام/.test(x.body)));
+    const ag = (await api(K, 'get', '/api/v1/agreements/current')).body.id;
+    const t = (await api(K, 'get', `/api/v1/invitations/${mineK[0].code}`)).body.pledge;
+    assert.equal((await api(K, 'post', `/api/v1/invitations/${mineK[0].code}/accept`, { agreementVersionId: ag, pledge: sign(K, t) })).status, 200);
+    assert.equal((await api(K, 'get', '/api/v1/me/invitations')).body.length, 0);
+    const mineN = (await api(N, 'get', '/api/v1/me/invitations')).body;
+    assert.equal((await api(N, 'post', `/api/v1/me/invitations/${mineN[0].id}/decline`, {})).status, 200);
+    assert.equal((await api(N, 'get', '/api/v1/me/invitations')).body.length, 0);
+    const late = await login('ضيف', '+966500000699');
+    assert.equal((await api(late, 'get', '/api/v1/me/invitations')).body[0].name, 'جمعية جديدة للعائلة');
+    const st = (await db.query(`SELECT phone_e164, status FROM direct_invitations WHERE gamiya_id=$1 ORDER BY phone_e164`, [gid])).rows;
+    assert.deepEqual(st.map((x) => x.status), ['ACCEPTED', 'DECLINED', 'PENDING']);
+  });
+});

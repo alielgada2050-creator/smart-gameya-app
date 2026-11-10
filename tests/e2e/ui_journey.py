@@ -116,6 +116,7 @@ def open_circle(page, name, tab=None):
     page.get_by_role("link", name=re.compile(name)).first.click()
     expect(page.get_by_role("heading", name=name, level=1)).to_be_visible()
     page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(600)                     # an unseen draw mounts its stage right after the lottery state loads
     if page.get_by_test_id("draw-stage").count():
         watch_draw(page)
     if tab:
@@ -208,10 +209,16 @@ with sync_playwright() as p:
     expect(B.get_by_role("heading", name="تعهّد يحمي حق الجميع")).to_be_visible()
     shot(B, "00b-onboarding-pledge-phone")
     B.get_by_role("button", name="ابدأ الآن").click()
-    welcome = B.get_by_role("img", name=re.compile("عضوة ترحّب بك"))
+    welcome = B.get_by_role("img", name=re.compile("ترحّب بك|يرحّب بك"))
     expect(welcome).to_be_visible()                                    # animated sign-in illustration
     anim = lambda pg: pg.evaluate("getComputedStyle(document.querySelector('.ill-welcome .ill-badge')).animationName")
     if "ill-pop" not in anim(B): problems.append(f"welcome badges not animated: {anim(B)}")
+    # greeter slider: woman, man, young man, girl — switch by hand (auto-play pauses), and a pause control exists
+    for who, label in (("man", "عضو"), ("youth", "شاب"), ("girl", "بنت"), ("woman", "عضوة")):
+        B.get_by_role("button", name="اعرض: " + label, exact=True).click()
+        expect(B.get_by_test_id("welcome-slider")).to_have_attribute("data-who", who)
+        if who == "youth": shot(B, "01b-greeter-youth-phone")
+    expect(B.get_by_role("button", name=re.compile("شغّل الحركة|أوقف الحركة"))).to_be_visible()
     B.emulate_media(reduced_motion="reduce")
     if anim(B) != "none": problems.append("animation ignores reduced motion")
     B.emulate_media(reduced_motion="no-preference")
@@ -510,8 +517,26 @@ with sync_playwright() as p:
     shot(A, "32-pledge")
     A.get_by_role("button", name="أنشئ الجمعية").click()
     expect(A.get_by_role("heading", name="جمعية جمعة الحي")).to_be_visible()
-    invite_and_join(A, [(B, "خالد"), (C, "نورة")], "جمعية جمعة الحي")
-    expect(A.get_by_role("link", name="أرسل عبر واتساب")).to_have_attribute("href", re.compile(r"^https://wa\.me/\?text=.*%D8"))
+    # direct invitation: everyone she already shares a circle with, plus a number that has no account yet
+    di = A.get_by_test_id("direct-invite")
+    di.get_by_role("button", name=re.compile("اختر الكل")).click()
+    di.get_by_label("أو اكتب أرقام الجوال").fill("0555000999")
+    di.get_by_role("button", name=re.compile("أرسل الدعوة إلى")).click()
+    expect(A.get_by_test_id("direct-result")).to_contain_text("خالد")
+    expect(A.get_by_test_id("direct-result").get_by_role("link", name="أرسل عبر واتساب")).to_have_attribute("href", re.compile(r"^https://wa\.me/966555000999\?text="))
+    shot(A, "32b-direct-invite")
+    nav(B, "الرئيسية"); B.reload()
+    expect(B.get_by_test_id("my-invitations")).to_contain_text("جمعية جمعة الحي")
+    shot(B, "32c-invitation-home-phone")
+    B.get_by_test_id("my-invitations").get_by_role("link", name="راجع وانضم").click()
+    expect(B.get_by_test_id("invite-card")).to_contain_text("جمعية جمعة الحي")
+    B.get_by_label("قرأت الاتفاقية وأوافق عليها").check()
+    sign_pledge(B, "خالد")
+    B.get_by_role("button", name="انضم إلى الجمعية").click()
+    expect(B.get_by_role("heading", name="جمعية جمعة الحي")).to_be_visible()
+    B.get_by_test_id("celebration").get_by_role("button", name="إغلاق").click()
+    invite_and_join(A, [(C, "نورة")], "جمعية جمعة الحي")
+    expect(A.get_by_role("link", name="أرسل عبر واتساب").first).to_have_attribute("href", re.compile(r"^https://wa\.me/\?text=.*%D8"))
     shot(B, "33-join-phone")
     open_circle(A, "جمعية جمعة الحي")
     A.get_by_test_id("edit-circle").locator("summary").click()
@@ -551,4 +576,4 @@ with sync_playwright() as p:
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("UI journey passed: onboarding (4 slides), circle-type wizard with the signed payment pledge, invite card + pledge before joining, WhatsApp invite, smart planner → prefilled wizard, goals, Friday circle, edit money terms → re-confirm / leave / remove with reason, turn picker with no fees, draw wheel (invite all, countdown, live for the organizer, auto-shown to waiting members, result card in chat), animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")
+print("UI journey passed: greeter slider (woman, man, young man, girl), direct invitations (people from other circles + unregistered number via WhatsApp, Home «دعوات لك» → join), onboarding (4 slides), circle-type wizard with the signed payment pledge, invite card + pledge before joining, WhatsApp invite, smart planner → prefilled wizard, goals, Friday circle, edit money terms → re-confirm / leave / remove with reason, turn picker with no fees, draw wheel (invite all, countdown, live for the organizer, auto-shown to waiting members, result card in chat), animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")

@@ -251,6 +251,8 @@ export class GamiyasService implements OnModuleInit {
       await this.acceptAgreement(c, userId, g.id, agreementVersionId, ip);
       if (already) await c.query(`UPDATE gamiya_members SET status='ACTIVE', joined_at=now(), payout_position=NULL WHERE gamiya_id=$1 AND user_id=$2`, [g.id, userId]);
       else await c.query(`INSERT INTO gamiya_members (gamiya_id, user_id, role, status, joined_at) VALUES ($1,$2,'MEMBER','ACTIVE',now())`, [g.id, userId]);
+      await c.query(`UPDATE direct_invitations d SET status='ACCEPTED', responded_at=now() FROM users me
+                     WHERE me.id=$2 AND d.gamiya_id=$1 AND d.status='PENDING' AND (d.invited_user_id = me.id OR d.phone_e164 = me.phone_e164)`, [g.id, userId]);
       await c.query(`UPDATE gamiya_invitations SET uses = uses + 1 WHERE id=$1`, [inv.id]);
       const joiner = (await c.query(`SELECT full_name FROM users WHERE id=$1`, [userId])).rows[0];
       await this.chat.post(c, { gamiyaId: g.id, kind: 'SYSTEM', body: `انضم ${joiner.full_name} إلى الجمعية ووقّع إقرار وتعهّد السداد.`, refEntity: 'member', refId: userId });

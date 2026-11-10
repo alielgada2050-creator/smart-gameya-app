@@ -93,6 +93,10 @@ export const PRESETS = {
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', keyEnv: 'OPENROUTER_API_KEY', defaultModel: 'meta-llama/llama-3.3-70b-instruct:free' },
   gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', keyEnv: 'GEMINI_API_KEY', defaultModel: 'gemini-2.5-flash' },
   mistral: { baseUrl: 'https://api.mistral.ai/v1', keyEnv: 'MISTRAL_API_KEY', defaultModel: 'mistral-small-latest' },
+  nvidia: { baseUrl: 'https://integrate.api.nvidia.com/v1', keyEnv: 'NVIDIA_NIM_API_KEY', defaultModel: 'meta/llama-3.3-70b-instruct' },
+  /** Any OpenAI-compatible endpoint you run or rent: a self-hosted gateway (e.g. a Free Claude Code / OmniRoute proxy on
+   *  the server, http://127.0.0.1:8082/v1), Ollama, etc. Needs AI_BASE_URL_CUSTOM and AI_MODEL_CUSTOM; key optional. */
+  custom: { baseUrl: '', keyEnv: 'AI_API_KEY_CUSTOM', defaultModel: '' },
 } as const;
 export type PresetName = keyof typeof PRESETS;
 
@@ -142,8 +146,14 @@ export function chainFromEnv(env: Record<string, string | undefined> = process.e
       if (!env.CLOUDFLARE_ACCOUNT_ID) { skipped.push(`${n} (missing CLOUDFLARE_ACCOUNT_ID)`); continue; }
       baseUrl = baseUrl.replace('{ACCOUNT_ID}', encodeURIComponent(env.CLOUDFLARE_ACCOUNT_ID));
     }
+    const model = env[`AI_MODEL_${n.toUpperCase()}`] ?? preset.defaultModel;
+    if (n === 'custom') {
+      if (!baseUrl || !model) { skipped.push('custom (missing AI_BASE_URL_CUSTOM or AI_MODEL_CUSTOM)'); continue; }
+      providers.push(new OpenAICompatibleProvider({ name: n, baseUrl, apiKey: key ?? 'none', model, fetchImpl }));
+      continue;
+    }
     if (!key) { skipped.push(`${n} (missing ${preset.keyEnv})`); continue; }
-    providers.push(new OpenAICompatibleProvider({ name: n, baseUrl, apiKey: key, model: env[`AI_MODEL_${n.toUpperCase()}`] ?? preset.defaultModel, fetchImpl }));
+    providers.push(new OpenAICompatibleProvider({ name: n, baseUrl, apiKey: key, model, fetchImpl }));
   }
   return { chain: new ProviderChain(providers), skipped };
 }

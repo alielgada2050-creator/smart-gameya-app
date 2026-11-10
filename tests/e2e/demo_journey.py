@@ -152,7 +152,7 @@ with sync_playwright() as p:
     if watch(pg) != live_winner: errors.append("replay showed a different winner")
     # hand the browser-made draw to Node: the real lottery code must verify it independently
     import json as _j
-    state = _j.loads(pg.evaluate("localStorage.getItem('sg.demo.v2')"))
+    state = _j.loads(pg.evaluate("localStorage.getItem('sg.demo.v3')"))
     rec = next(v["result"] for v in state["lottery"].values() if v.get("result"))
     open(os.path.join(SHOTS, "demo-draw.json"), "w").write(_j.dumps(rec))
 
