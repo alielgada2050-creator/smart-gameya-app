@@ -384,9 +384,23 @@ on('POST', '/gamiyas/:id/lottery/execute', ({ me, params, body }) => {
   const rec: DrawRecord = executeDraw(L.prep, { publicEntropy: entropy, executedBy: me, approvedBy: L.approvals[0] });
   L.result = rec;
   activate(g, [...rec.order].sort((a, b) => a.position - b.position).map((o) => o.memberId), 'LOTTERY');
-  post(g.id, 'SYSTEM', `نُفّذت القرعة: ${[...rec.order].sort((a, b) => a.position - b.position).map((o) => `${o.position}. ${user(db.members.find((x) => x.id === o.memberId)!.userId).fullName}`).join('، ')}. يمكن لأي عضو التحقق من النتيجة.`, null, 'lottery_session', L.sessionId);
-  notify(membersOf(g.id).map((x) => x.userId), { gamiyaId: g.id, kind: 'INFO', body: `نُفّذت قرعة «${g.name}»` });
+  post(g.id, 'SYSTEM', `تمت القرعة وتحقق النظام من مطابقتها للبصمة. الترتيب: ${[...rec.order].sort((a, b) => a.position - b.position).map((o) => `${o.position}. ${user(db.members.find((x) => x.id === o.memberId)!.userId).fullName}`).join('، ')}`, null, 'lottery_session', L.sessionId);
+  notify(membersOf(g.id).map((x) => x.userId), { gamiyaId: g.id, kind: 'LOTTERY_DONE', body: `تمت قرعة «${g.name}». افتح الجمعية لمشاهدة العجلة والنتيجة.` });
   return { record: { ...rec, howToVerify: 'sha256(revealedSeedHex) must equal commitment' }, verification: verifyDraw(rec) };
+});
+
+on('POST', '/gamiyas/:id/lottery/invite', ({ me, params, body }) => {
+  const { g, m } = membership(params[0], me);
+  if (m.role !== 'MANAGER') throw forbidden('only the organizer can do this');
+  if (g.status !== 'LOCKED') throw conflict('NOT_LOCKED', 'invite members once the circle is full and before the draw');
+  if (body.at) { const t = new Date(body.at).getTime(); if (!(t > Date.now() - 60_000 && t < Date.now() + 30 * 86400_000)) throw bad('INVALID_TIME', 'choose a time within the next 30 days'); }
+  const L = db.lottery[g.id];
+  if (L?.result) throw conflict('LOTTERY_DONE', 'draw already executed');
+  const when = body.at ? new Intl.DateTimeFormat('ar-SA-u-nu-latn-ca-gregory', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }).format(new Date(body.at)) : null;
+  post(g.id, 'SYSTEM', `دعوة لمشاهدة القرعة الرسمية${when ? ` ${when}` : ' الآن'}. افتحوا صفحة «${g.name}» لتشاهدوا العجلة معاً.` + (L ? ` النتيجة محسومة سلفاً بالبصمة المعلنة ${L.prep.commitment.slice(0, 16)}… ويمكن لأي عضو التحقق منها.` : ''), null, 'lottery_invite', L?.sessionId ?? g.id);
+  const others = membersOf(g.id).filter((x) => x.userId !== me).map((x) => x.userId);
+  notify(others, { gamiyaId: g.id, kind: 'LOTTERY_INVITE', body: when ? `قرعة «${g.name}» ${when}: شاهدها مباشرة` : `قرعة «${g.name}» الآن: شاهدها مباشرة` });
+  return { invited: others.length, at: body.at ?? null };
 });
 
 // ordering

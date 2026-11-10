@@ -325,7 +325,7 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
 .sub-panel > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; gap: 6px; }
 
 /* In-app receipt viewer (native apps) */
-.viewer { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; gap: 16px; align-content: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: rgb(15 23 42 / .92); }
+.viewer { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; gap: 16px; align-content: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: rgb(15 23 42 / .92); }
 .viewer img { max-width: 100%; max-height: 75vh; border-radius: 12px; background: #fff; }
 /* Native apps: no text selection on chrome, no tap flash; content stays selectable. */
 :root[data-native] .topbar, :root[data-native] .bottom-nav, :root[data-native] .sidebar { -webkit-user-select: none; user-select: none; }
@@ -424,4 +424,38 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
   :root:not([data-skin='light']):not([data-skin='bright']) {
     --ill-blob: #1B2A44; --ill-line: #0B1120; --ill-cloth: #3D5A92; --ill-thobe: #F1F5F9; --ill-badge: #E8EEF8; --ill-plus: #5B7BB8;
   }
+}
+
+/* ───────────── Draw wheel stage ─────────────
+   A deliberate "show" moment: always dark navy with gold, whatever the skin. */
+.draw-stage {
+  position: fixed; inset: 0; z-index: 80; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; color: #F8FAFC;
+  background: radial-gradient(120% 80% at 50% 38%, #1E2F57 0%, #0F172A 55%, #070B16 100%);
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.draw-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 760px; width: 100%; margin: 0 auto; }
+.draw-head h2 { margin: 0; font-size: 1.25rem; color: #FFFFFF; }
+.draw-kicker { margin: 0; color: #FCD34D; font-size: .85rem; font-weight: 600; letter-spacing: .01em; }
+.draw-canvas { width: 100%; height: 100%; min-height: 0; display: block; }
+.draw-foot { max-width: 560px; width: 100%; margin: 0 auto; text-align: center; min-height: 64px; }
+.draw-status { margin: 0; font-size: 1.15rem; font-weight: 600; color: #E2E8F0; }
+.draw-ticker { margin: 0; font-size: 1.9rem; font-weight: 700; color: #FBBF24; min-height: 1.4em; }
+.draw-result { display: grid; gap: 8px; justify-items: center; max-height: 46vh; overflow: auto; }
+.draw-winner { margin: 0; font-size: clamp(2rem, 7vw, 3.2rem); font-weight: 700; color: #FFFFFF; line-height: 1.2; text-shadow: 0 6px 30px rgba(245,158,11,.45); }
+.draw-order { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; }
+.draw-order li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 6px; border-radius: 999px; background: rgba(255,255,255,.08); font-weight: 600; }
+.draw-order li span { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: rgba(255,255,255,.14); font-size: .8rem; }
+.draw-order li:first-child span { background: #F59E0B; color: #0F172A; }
+.draw-verified { margin: 0; color: #86EFAC; font-size: .85rem; }
+.draw-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+.draw-ghost { background: rgba(255,255,255,.08); color: #F8FAFC; border: 1px solid rgba(255,255,255,.22); }
+.draw-ghost:hover { background: rgba(255,255,255,.14); }
+.lottery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.msg-action { margin-top: 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .draw-stage { animation: stage-in 320ms var(--ease-out); }
+  .draw-winner { animation: winner-in 700ms var(--ease-out) both; }
+  .draw-order li { animation: cele-row 320ms var(--ease-out) both; animation-delay: calc(600ms + var(--i) * 140ms); }
+  @keyframes stage-in { from { opacity: 0; } }
+  @keyframes winner-in { from { opacity: 0; transform: scale(.6); } 60% { transform: scale(1.08); } }
 }

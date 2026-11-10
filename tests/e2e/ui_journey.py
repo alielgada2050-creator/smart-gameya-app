@@ -96,10 +96,25 @@ def add_iban(page):
     expect(page.get_by_test_id("payout-list")).to_contain_text("••••7519")
 
 
+def watch_draw(page, skip=True):
+    """Members who missed the live draw see the wheel once; watch (or skip) and close it like a member would."""
+    stage = page.get_by_test_id("draw-stage")
+    if skip:
+        page.get_by_role("button", name="تخطَّ إلى النتيجة").click()
+    expect(stage).to_have_attribute("data-phase", "reveal", timeout=25000)
+    winner = page.get_by_test_id("draw-winner").inner_text()
+    stage.get_by_role("button", name="إغلاق").click()
+    expect(stage).to_have_count(0)
+    return winner
+
+
 def open_circle(page, name, tab=None):
     nav(page, "جمعياتي")
     page.get_by_role("link", name=re.compile(name)).first.click()
-    expect(page.get_by_role("heading", name=name)).to_be_visible()
+    expect(page.get_by_role("heading", name=name, level=1)).to_be_visible()
+    page.wait_for_load_state("networkidle")
+    if page.get_by_test_id("draw-stage").count():
+        watch_draw(page)
     if tab:
         page.get_by_role("tab", name=tab).click()
         if tab == "المدفوعات":
@@ -131,18 +146,22 @@ def invite_and_join(org, joiners, circle_name):
 
 def run_draw(org, approver, circle_name):
     open_circle(org, circle_name)
+    org.get_by_test_id("draw-invite").locator("summary").click()       # invite everyone to watch
+    org.get_by_role("button", name="أرسل الدعوة للجميع").click()
+    expect(org.get_by_text(re.compile(r"أُرسلت الدعوة إلى \d+ أعضاء"))).to_be_visible()
     org.get_by_role("button", name="جهّز القرعة الرسمية").click()
     expect(org.get_by_test_id("commitment")).to_be_visible()
     open_circle(approver, circle_name)
     approver.get_by_role("button", name="أوافق على إجراء القرعة").click()
     expect(approver.get_by_text("وافقت. بانتظار تنفيذ المنظم.")).to_be_visible()
     org.reload()
-    org.get_by_role("button", name="نفّذ القرعة").click()
+    org.get_by_role("button", name="ابدأ القرعة على العجلة").click()
+    stage = org.get_by_test_id("draw-stage")
+    expect(stage).to_be_visible()
+    expect(stage).to_contain_text("تبدأ العجلة خلال")                 # countdown 10 → 1
+    winner = watch_draw(org)
     expect(org.get_by_test_id("verification")).to_contain_text("تحققنا")
-    cele = org.get_by_test_id("celebration")
-    expect(cele).to_contain_text("تمت القرعة")                        # the drawn order is revealed name by name
-    cele.get_by_role("button", name="إغلاق").click()
-    expect(cele).to_have_count(0)
+    return winner
 
 
 with sync_playwright() as p:
@@ -191,7 +210,15 @@ with sync_playwright() as p:
     A.get_by_role("button", name="أنشئ الجمعية").click()
     expect(A.get_by_role("heading", name="جمعية الحي")).to_be_visible()
     invite_and_join(A, [B, C], "جمعية الحي")
-    run_draw(A, B, "جمعية الحي")
+    winner = run_draw(A, B, "جمعية الحي")
+    # B stayed on the circle page after approving: the wheel appears there by itself, with the same result
+    expect(B.get_by_test_id("draw-stage")).to_be_visible(timeout=12000)
+    expect(B.get_by_test_id("draw-stage")).to_contain_text("إعادة مشاهدة القرعة")
+    if watch_draw(B) != winner: problems.append("members watching saw a different winner")
+    # the result card in the chat reopens the wheel for anyone
+    open_circle(C, "جمعية الحي", "المحادثة")
+    C.get_by_role("button", name="شاهد العجلة وصورة النتيجة").first.click()
+    if watch_draw(C) != winner: problems.append("chat result card shows a different winner")
     shot(A, "05-circle-overview")
 
     # 4. Three-party settlement driven through the UI until the circle completes
@@ -430,4 +457,4 @@ with sync_playwright() as p:
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("UI journey passed: animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")
+print("UI journey passed: draw wheel (invite all, countdown, live for the organizer, auto-shown to waiting members, result card in chat), animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")

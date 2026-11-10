@@ -27,10 +27,20 @@ def be(page, name):
 def nav(page, label):
     page.get_by_role("navigation", name="جمعيتي").get_by_role("link", name=label).click()
 
+def watch(page, skip=True):
+    stage = page.get_by_test_id("draw-stage")
+    if skip: page.get_by_role("button", name="تخطَّ إلى النتيجة").click()
+    expect(stage).to_have_attribute("data-phase", "reveal", timeout=25000)
+    w = page.get_by_test_id("draw-winner").inner_text()
+    stage.get_by_role("button", name="إغلاق").click()
+    return w
+
 def circle(page, name, tab=None):
     nav(page, "جمعياتي")
     page.get_by_role("link", name=re.compile(name)).first.click()
-    expect(page.get_by_role("heading", name=name)).to_be_visible()
+    expect(page.get_by_role("heading", name=name, level=1)).to_be_visible()
+    page.wait_for_load_state("networkidle")
+    if page.get_by_test_id("draw-stage").count(): watch(page)
     if tab: page.get_by_role("tab", name=tab).click()
     page.wait_for_load_state("networkidle")
 
@@ -116,12 +126,18 @@ with sync_playwright() as p:
     pg.get_by_role("button", name="أوافق على إجراء القرعة").click()
     be(pg, "خالد")
     circle(pg, "الجمعية الكبيرة")
-    pg.get_by_role("button", name="نفّذ القرعة").click()
-    try:
-        expect(pg.get_by_test_id("verification")).to_contain_text("تحققنا")
-    except AssertionError:
-        pg.screenshot(path=f"{SHOTS}/debug-lottery.png"); print("PAGE:", pg.locator("main").inner_text()[:1500]); print("ERRORS:", errors); raise
-    expect(pg.get_by_test_id("celebration")).to_contain_text("تمت القرعة")
+    pg.get_by_role("button", name="ابدأ القرعة على العجلة").click()
+    expect(pg.get_by_test_id("draw-stage")).to_have_attribute("data-phase", "spin", timeout=15000)   # full 10-second countdown
+    expect(pg.get_by_test_id("draw-stage")).to_have_attribute("data-phase", "reveal", timeout=12000)
+    pg.screenshot(path=f"{SHOTS}/43-demo-wheel.png")
+    live_winner = pg.get_by_test_id("draw-winner").inner_text()
+    pg.get_by_test_id("draw-stage").get_by_role("button", name="إغلاق").click()
+    expect(pg.get_by_test_id("verification")).to_contain_text("تحققنا")
+    # another member opening the circle afterwards sees the same wheel and the same winner
+    be(pg, "نورة")
+    nav(pg, "جمعياتي"); pg.get_by_role("link", name=re.compile("الجمعية الكبيرة")).first.click()
+    expect(pg.get_by_test_id("draw-stage")).to_contain_text("إعادة مشاهدة القرعة")
+    if watch(pg) != live_winner: errors.append("replay showed a different winner")
     # hand the browser-made draw to Node: the real lottery code must verify it independently
     import json as _j
     state = _j.loads(pg.evaluate("localStorage.getItem('sg.demo.v1')"))
@@ -138,4 +154,4 @@ with sync_playwright() as p:
 real = [e for e in errors if "favicon" not in e]
 if real:
     print("FAIL: console errors:\n- " + "\n- ".join(real[:8])); sys.exit(1)
-print("Demo journey passed: persona switcher, organizer approves + match + confirm, upload + declare, AI priority order approved by all, join by code, chat assistant, platform dispute + large-circle approval, real lottery in the browser, phone layout, data kept on reload")
+print("Demo journey passed: draw wheel (live countdown + spin, replay with the same winner), persona switcher, organizer approves + match + confirm, upload + declare, AI priority order approved by all, join by code, chat assistant, platform dispute + large-circle approval, real lottery in the browser, phone layout, data kept on reload")

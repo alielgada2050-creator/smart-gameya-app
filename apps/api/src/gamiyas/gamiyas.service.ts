@@ -261,8 +261,38 @@ export class GamiyasService implements OnModuleInit {
       await c.query(`UPDATE gamiyas SET status='ACTIVE' WHERE id=$1`, [gamiyaId]);
       const names = new Map((await c.query(`SELECT m.id, u.full_name FROM gamiya_members m JOIN users u ON u.id = m.user_id WHERE m.gamiya_id=$1`, [gamiyaId])).rows.map((r) => [r.id, r.full_name]));
       await this.chat.post(c, { gamiyaId, kind: 'SYSTEM', body: `تمت القرعة وتحقق النظام من مطابقتها للبصمة. الترتيب: ${rec.order.map((o) => `${o.position}. ${names.get(o.memberId)}`).join('، ')}`, refEntity: 'lottery_session', refId: s.id });
+      // Everyone hears about it, not only those watching: the result card in the chat replays the wheel from this record.
+      const everyone = (await c.query(`SELECT user_id FROM gamiya_members WHERE gamiya_id=$1`, [gamiyaId])).rows.map((r) => r.user_id);
+      await this.chat.notify(c, everyone, { gamiyaId, kind: 'LOTTERY_DONE', body: `تمت قرعة «${g.name}». افتح الجمعية لمشاهدة العجلة والنتيجة.` });
       await this.audit.log(c, { actorId: userId, action: 'LOTTERY_EXECUTED', entity: 'lottery_session', entityId: s.id, correlationId: cid, details: { approvedBy: approver.user_id } });
       return { record: this.publicRecord(rec), verification: verifyDraw(rec) };
+    });
+  }
+
+  /**
+   * Invite all members to watch the official draw live. Transparency only: it changes nothing about the draw itself,
+   * whose result is fixed by the published fingerprint and the organizer's public phrase.
+   */
+  async inviteToDraw(gamiyaId: string, userId: string, at: string | undefined, cid: string) {
+    return this.db.tx(async (c) => {
+      const g = await this.membership(c, gamiyaId, userId, true);
+      this.requireManager(g);
+      if (g.status !== 'LOCKED') throw conflict('NOT_LOCKED', 'invite members once the circle is full and before the draw');
+      if (at) {
+        const t = new Date(at).getTime();
+        if (t < Date.now() - 60_000 || t > Date.now() + 30 * 86400_000) throw badRequest('INVALID_TIME', 'choose a time within the next 30 days');
+      }
+      const s = (await c.query(`SELECT s.id, s.commitment_sha256, r.session_id AS done FROM lottery_sessions s LEFT JOIN lottery_results r ON r.session_id = s.id
+                                WHERE s.gamiya_id=$1 AND NOT s.is_trial`, [gamiyaId])).rows[0];
+      if (s?.done) throw conflict('LOTTERY_DONE', 'draw already executed');
+      const when = at ? new Intl.DateTimeFormat('ar-SA-u-nu-latn-ca-gregory', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }).format(new Date(at)) : null;
+      const body = `دعوة لمشاهدة القرعة الرسمية${when ? ` ${when}` : ' الآن'}. افتحوا صفحة «${g.name}» لتشاهدوا العجلة معاً.`
+        + (s ? ` النتيجة محسومة سلفاً بالبصمة المعلنة ${s.commitment_sha256.slice(0, 16)}… ويمكن لأي عضو التحقق منها.` : '');
+      await this.chat.post(c, { gamiyaId, kind: 'SYSTEM', body, refEntity: 'lottery_invite', refId: s?.id ?? gamiyaId });
+      const others = (await c.query(`SELECT user_id FROM gamiya_members WHERE gamiya_id=$1 AND user_id <> $2`, [gamiyaId, userId])).rows.map((r) => r.user_id);
+      await this.chat.notify(c, others, { gamiyaId, kind: 'LOTTERY_INVITE', body: when ? `قرعة «${g.name}» ${when}: شاهدها مباشرة` : `قرعة «${g.name}» الآن: شاهدها مباشرة` });
+      await this.audit.log(c, { actorId: userId, action: 'LOTTERY_INVITE', entity: 'gamiya', entityId: gamiyaId, correlationId: cid, details: { at: at ?? null } });
+      return { invited: others.length, at: at ?? null };
     });
   }
 

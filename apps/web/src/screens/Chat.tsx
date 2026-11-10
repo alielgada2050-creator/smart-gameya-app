@@ -50,6 +50,13 @@ export function Chat({ id, onEvent }: { id: string; onEvent?: () => void }) {
           <div key={m.id} className={`msg ${m.kind}${m.mine ? ' mine' : ''}`} data-kind={m.kind}>
             <span className="who">{who(m)}</span>
             {m.body}
+            {m.kind === 'SYSTEM' && (m.refEntity === 'lottery_session' && m.body.startsWith('تمت القرعة') || m.refEntity === 'lottery_invite') && (
+              <button type="button" className="btn btn-secondary msg-action" onClick={() => {
+                // result card for everyone: replays the wheel from the server's record; the invitation opens the draw panel
+                if (m.refEntity === 'lottery_session') { try { sessionStorage.setItem('sg.watchDraw', id); } catch { /* ignore */ } }
+                location.hash = `/c/${id}`;
+              }}>{m.refEntity === 'lottery_session' ? t.draw.watchAndImage : t.draw.watch}</button>
+            )}
             <time dateTime={m.at}>{time(m.at, lang)}</time>
           </div>
         ))}

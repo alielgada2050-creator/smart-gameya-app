@@ -1,3 +1,4 @@
+import { DrawStageHost } from './lottery/host.tsx';
 import { flushSync } from 'react-dom';
 import { Celebration } from './illustrations/Celebration.tsx';
 import { useEffect, useState } from 'react';
@@ -82,6 +83,7 @@ export function App() {
       </Shell>
       <ImageViewer label={t.closeViewer} />
       <Celebration closeLabel={t.cele.close} />
+      <DrawStageHost />
     </I18n.Provider>
   );
 }

@@ -208,6 +208,16 @@ describe('full circle lifecycle (model A)', () => {
     assert.equal((await api(B, 'post', `/api/v1/gamiyas/${circleId}/lottery/approve`)).status, 200);
     assert.equal((await api(B, 'post', `/api/v1/gamiyas/${circleId}/lottery/execute`, { publicEntropy: 'announced-2026-11-09' })).status, 403);
 
+    // invite everyone to watch: organizer only, sensible time, chat record + a notification for each other member
+    assert.equal((await api(B, 'post', `/api/v1/gamiyas/${circleId}/lottery/invite`, {})).status, 403);
+    assert.equal((await api(A, 'post', `/api/v1/gamiyas/${circleId}/lottery/invite`, { at: '2020-01-01T10:00:00+03:00' })).body.error.code, 'INVALID_TIME');
+    const inv = await api(A, 'post', `/api/v1/gamiyas/${circleId}/lottery/invite`, { at: new Date(Date.now() + 3600_000).toISOString() });
+    assert.equal(inv.status, 200, JSON.stringify(inv.body)); assert.equal(inv.body.invited, 3);
+    const cNotes = (await api(C, 'get', '/api/v1/me/notifications')).body.items;
+    assert.ok(cNotes.some((n: any) => n.kind === 'LOTTERY_INVITE'), 'members are invited to watch');
+    const invMsg = (await api(D, 'get', `/api/v1/gamiyas/${circleId}/chat`)).body.find((m: any) => m.refEntity === 'lottery_invite');
+    assert.ok(invMsg && invMsg.body.includes('البصمة المعلنة'), 'the invitation quotes the published fingerprint');
+
     const exec = await api(A, 'post', `/api/v1/gamiyas/${circleId}/lottery/execute`, { publicEntropy: 'announced-2026-11-09' });
     assert.equal(exec.status, 200, JSON.stringify(exec.body));
     assert.equal(exec.body.verification.valid, true);
@@ -220,6 +230,11 @@ describe('full circle lifecycle (model A)', () => {
     assert.equal(createHash('sha256').update(Buffer.from(seen.body.record.revealedSeedHex, 'hex')).digest('hex'), commitment);
     assert.equal(seen.body.verification.valid, true);
     assert.equal((await api(A, 'post', `/api/v1/gamiyas/${circleId}/lottery/execute`, { publicEntropy: 'again-again' })).body.error.code, 'LOTTERY_DONE');
+    for (const m of [B, C, D]) {
+      const n = (await api(m, 'get', '/api/v1/me/notifications')).body.items;
+      assert.ok(n.some((x: any) => x.kind === 'LOTTERY_DONE'), 'every member is told the draw happened');
+    }
+    assert.equal((await api(A, 'post', `/api/v1/gamiyas/${circleId}/lottery/invite`, {})).body.error.code, 'NOT_LOCKED', 'no invitation after the draw');
 
     const details = await api(A, 'get', `/api/v1/gamiyas/${circleId}`);
     assert.equal(details.body.status, 'ACTIVE');

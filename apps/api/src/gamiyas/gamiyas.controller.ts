@@ -18,6 +18,7 @@ const PreviewSchema = CreateSchema.pick({ country: true, frequency: true, contri
 const InviteSchema = z.object({ maxUses: z.number().int().min(1).max(60).default(1), expiresInHours: z.number().int().min(1).max(168).default(72) });
 const AcceptSchema = z.object({ agreementVersionId: uuid });
 const ExecuteSchema = z.object({ publicEntropy: z.string().trim().min(8).max(200) });
+const DrawInviteSchema = z.object({ at: z.string().datetime({ offset: true }).optional() });
 
 @Controller('api/v1')
 export class GamiyasController {
@@ -63,6 +64,12 @@ export class GamiyasController {
   @Post('gamiyas/:id/lottery/execute') @HttpCode(200)
   execute(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() body: unknown, @CorrelationId() cid: string) {
     return this.svc.executeLottery(parseId(id), u.id, parseBody(ExecuteSchema, body).publicEntropy, cid);
+  }
+
+  /** Invite every member to watch the official draw (now or at a set time). */
+  @Post('gamiyas/:id/lottery/invite') @HttpCode(200)
+  inviteToDraw(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body() body: unknown, @CorrelationId() cid: string) {
+    return this.svc.inviteToDraw(parseId(id), u.id, parseBody(DrawInviteSchema, body ?? {}).at, cid);
   }
 
   @Get('gamiyas/:id/lottery')

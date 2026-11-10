@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { api, uploadFile } from '../api.ts';
+import { useEffect, useState } from 'react';
+import { api, uploadFile, currentUser } from '../api.ts';
 import { ErrorNote, Loading, Pill, Ring, TierChip, useLoad } from '../components.tsx';
 import { date, money, useT } from '../i18n.ts';
 import { Icon } from '../shell/icons.tsx';
@@ -7,7 +7,8 @@ import { Obligations } from './Obligations.tsx';
 import { Chat } from './Chat.tsx';
 import { PayoutOrder } from './Ordering.tsx';
 import { WEB_ORIGIN, isNative, shareLink } from '../platform.ts';
-import { celebrate } from '../illustrations/Celebration.tsx';
+import { openDrawStage } from '../lottery/host.tsx';
+import type { DrawResult } from '../lottery/DrawStage.tsx';
 
 export function Circle({ id, tab }: { id: string; tab: string }) {
   const { t, lang } = useT();
@@ -242,17 +243,62 @@ function Lottery({ id, circle, state, onChange }: { id: string; circle: any; sta
   const [entropy, setEntropy] = useState(() => `إعلان القرعة ${new Date().toISOString()}`);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [inviteAt, setInviteAt] = useState('');
+  const [invited, setInvited] = useState<number | null>(null);
   const isManager = circle.myRole === 'MANAGER';
   const blockedByApproval = circle.tier === 'LARGE' && circle.platformApproval !== 'APPROVED';
   const name = (memberId: string) => circle.members.find((m: any) => m.memberId === memberId)?.fullName ?? '?';
+  // slices in a fixed, result-independent order (member id), so the wheel itself reveals nothing before the spin
+  const slices = [...circle.members].sort((a: any, b: any) => a.memberId.localeCompare(b.memberId)).map((m: any) => ({ memberId: m.memberId, name: m.fullName }));
+  // per member, not per device: a shared phone still shows the wheel once to each member
+  const seenKey = (commitment: string) => `sg.drawSeen.${currentUser()?.id ?? 'anon'}.${commitment}`;
+  const markSeen = (commitment: string) => { try { localStorage.setItem(seenKey(commitment), '1'); } catch { /* ignore */ } };
+  const fromRecord = (rec: any, valid: boolean): DrawResult => ({ order: rec.order, commitment: rec.commitment, verified: valid, executedAt: rec.executedAt });
+
   async function run(fn: () => Promise<any>) {
     setBusy(true); setError(null);
     try { await fn(); onChange(); } catch (e) { setError(e); } finally { setBusy(false); }
   }
+  const replay = () => {
+    if (state?.state !== 'EXECUTED') return;
+    markSeen(state.record.commitment);
+    openDrawStage({ circleName: circle.name, slices, mode: 'replay', getResult: async () => fromRecord(state.record, !!state.verification?.valid) });
+  };
+  const executeLive = () => {
+    setError(null);
+    openDrawStage({
+      circleName: circle.name, slices, mode: 'live',
+      // the server draws as the countdown starts; the wheel only shows that result
+      getResult: async () => {
+        const r = await api<any>('POST', `/gamiyas/${id}/lottery/execute`, { publicEntropy: entropy.trim() });
+        markSeen(r.record.commitment);
+        return fromRecord(r.record, !!r.verification?.valid);
+      },
+      onClose: () => onChange(),
+    });
+  };
+
+  // members who did not watch it live see the wheel once when they next open the circle (or when asked from the chat)
+  useEffect(() => {
+    if (state?.state !== 'EXECUTED') return;
+    let asked = false, seen = false;
+    try { asked = sessionStorage.getItem('sg.watchDraw') === id; if (asked) sessionStorage.removeItem('sg.watchDraw'); } catch { /* ignore */ }
+    try { seen = !!localStorage.getItem(seenKey(state.record.commitment)); } catch { /* ignore */ }
+    if (asked || !seen) replay();
+  }, [state?.state]);
+  // near-live: while a draw is prepared, check every few seconds so members waiting on the page see it start
+  useEffect(() => {
+    if (state?.state !== 'PREPARED' || state.preparedByMe) return;
+    const iv = window.setInterval(async () => {
+      try { const s = await api<any>('GET', `/gamiyas/${id}/lottery`); if (s.state === 'EXECUTED') onChange(); } catch { /* keep waiting */ }
+    }, 4000);
+    return () => window.clearInterval(iv);
+  }, [state?.state]);
 
   return (
     <section className="panel stack-sm" aria-live="polite">
       <h2>{t.lottery}</h2>
+      <p className="muted small">{t.draw.fairness}</p>
       {state?.state !== 'EXECUTED' && (
         <>
           <button className="btn btn-secondary" disabled={busy} onClick={async () => { setError(null); try { setTrial(await api('POST', `/gamiyas/${id}/lottery/trial`)); } catch (e) { setError(e); } }}>{t.trial}</button>
@@ -264,6 +310,20 @@ function Lottery({ id, circle, state, onChange }: { id: string; circle: any; sta
           )}
         </>
       )}
+      {isManager && circle.status === 'LOCKED' && state?.state !== 'EXECUTED' && !blockedByApproval && (
+        <details className="sub-panel" data-testid="draw-invite">
+          <summary><strong>{t.draw.inviteTitle}</strong></summary>
+          <div className="stack-sm" style={{ marginTop: 8 }}>
+            <label>{t.draw.inviteAt}<input type="datetime-local" value={inviteAt} onChange={(e) => setInviteAt(e.target.value)} /></label>
+            <button className="btn btn-secondary" disabled={busy} onClick={async () => {
+              setBusy(true); setError(null);
+              try { const r = await api<any>('POST', `/gamiyas/${id}/lottery/invite`, inviteAt ? { at: new Date(inviteAt).toISOString() } : {}); setInvited(r.invited); }
+              catch (e) { setError(e); } finally { setBusy(false); }
+            }}>{t.draw.inviteNow}</button>
+            {invited !== null && <p className="notice ok small">{t.draw.invited(invited)}</p>}
+          </div>
+        </details>
+      )}
       {circle.status === 'LOCKED' && state?.state === 'NOT_PREPARED' && isManager && (
         blockedByApproval ? <p className="muted small">{t.approvalStatus[circle.platformApproval]}</p>
           : <button className="btn btn-primary" disabled={busy} onClick={() => run(() => api('POST', `/gamiyas/${id}/lottery/prepare`))}>{t.prepare}</button>
@@ -274,14 +334,12 @@ function Lottery({ id, circle, state, onChange }: { id: string; circle: any; sta
           <p className="code" data-testid="commitment">{state.commitment}</p>
           {!state.preparedByMe && !state.approvedByMe && <button className="btn btn-primary" disabled={busy} onClick={() => run(() => api('POST', `/gamiyas/${id}/lottery/approve`))}>{t.approve}</button>}
           {!state.preparedByMe && state.approvedByMe && <p className="notice">{t.approvedWait}</p>}
+          {!state.preparedByMe && <p className="muted small">{t.draw.liveHint}</p>}
           {state.preparedByMe && state.approvals === 0 && <p className="muted">{t.needApproval}</p>}
           {state.preparedByMe && state.approvals > 0 && (
             <>
               <label>{t.entropy}<input value={entropy} onChange={(e) => setEntropy(e.target.value)} minLength={8} maxLength={200} /></label>
-              <button className="btn btn-primary" disabled={busy || entropy.trim().length < 8} onClick={() => run(async () => {
-                const r = await api<any>('POST', `/gamiyas/${id}/lottery/execute`, { publicEntropy: entropy.trim() });
-                celebrate({ title: t.cele.drawTitle, items: [...r.record.order].sort((a: any, b: any) => a.position - b.position).map((o: any) => name(o.memberId)) });
-              })}>{t.execute}</button>
+              <button className="btn btn-primary" disabled={busy || entropy.trim().length < 8} onClick={executeLive}>{t.draw.execute}</button>
             </>
           )}
         </div>
@@ -289,6 +347,9 @@ function Lottery({ id, circle, state, onChange }: { id: string; circle: any; sta
       {state?.state === 'EXECUTED' && (
         <div className="stack-sm">
           <p className={state.verification?.valid ? 'notice ok' : 'notice error'} data-testid="verification">{state.verification?.valid ? t.verified : t.notVerified}</p>
+          <div className="lottery-actions">
+            <button className="btn btn-primary" onClick={replay}>{t.draw.watchAndImage}</button>
+          </div>
           <details>
             <summary>{t.verifyDetails}</summary>
             <dl className="stack-sm" style={{ marginTop: 8 }}>

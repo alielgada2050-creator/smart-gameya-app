@@ -63,6 +63,16 @@ const ar = {
   install: 'ثبّت التطبيق', offline: 'أنت غير متصل. ستظهر آخر بيانات محمّلة، والإرسال يعمل عند عودة الاتصال.', iosInstall: 'لتثبيته على آيفون: افتح زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».', installed: 'التطبيق مثبّت على هذا الجهاز.',
   appearance: 'المظهر', skins: { auto: 'تلقائي', light: 'فاتح', dark: 'داكن', bright: 'ساطع' } as Record<string, string>, language: 'English',
   adminTitle: 'مراجعة الجمعيات الكبيرة', noPending: 'لا توجد جمعيات بانتظار المراجعة.', openNote: 'افتح السند', approveCircle: 'اعتمد الجمعية', rejectCircle: 'ارفض مع ملاحظة', organizer: 'المنظم',
+  draw: {
+    title: 'القرعة الرسمية', live: 'القرعة الرسمية — مباشر', replay: 'إعادة مشاهدة القرعة', skip: 'تخطَّ إلى النتيجة',
+    startsIn: (n: number) => `تبدأ العجلة خلال ${n}`, waiting: 'نحسب النتيجة ونطابقها مع البصمة…', firstTurn: 'صاحب الدور الأول',
+    verifiedLine: 'النتيجة مطابقة للبصمة المعلنة قبل السحب، ويمكن لأي عضو التحقق منها.', verifiedBadge: 'مطابقة للبصمة المعلنة ✓',
+    saveImage: 'احفظ صورة النتيجة وشاركها', cardTitle: 'نتيجة قرعة', fingerprint: 'البصمة',
+    watch: 'شاهد العجلة', watchAndImage: 'شاهد العجلة وصورة النتيجة', execute: 'ابدأ القرعة على العجلة',
+    fairness: 'العجلة تعرض نتيجة القرعة القابلة للتحقق ولا تقرّرها: الترتيب محسوم ببصمة معلنة مسبقاً وعبارة المنظم.',
+    inviteTitle: 'ادعُ الأعضاء لمشاهدة القرعة', inviteAt: 'موعد القرعة (اختياري)', inviteNow: 'أرسل الدعوة للجميع',
+    invited: (n: number) => `أُرسلت الدعوة إلى ${n} أعضاء، وسُجّلت في المحادثة.`, liveHint: 'ابقَ في هذه الصفحة: ستظهر العجلة تلقائياً عند بدء القرعة.',
+  },
   cele: {
     close: 'إغلاق', welcomeArt: 'عضوة ترحّب بك وحولها مزايا التطبيق: القرعة، الاعتماد، الإيصالات، المحادثة، التذكيرات، الخصوصية',
     drawTitle: 'تمت القرعة! هذا ترتيب القبض', orderTitle: 'اعتُمد الترتيب بموافقة الجميع', paidTitle: 'اكتملت الدفعة',
@@ -156,6 +166,16 @@ const en: Dict = {
   install: 'Install app', offline: 'You’re offline. Last loaded data is shown; sending works when you reconnect.', iosInstall: 'To install on iPhone: tap Share, then “Add to Home Screen”.', installed: 'The app is installed on this device.',
   appearance: 'Appearance', skins: { auto: 'Automatic', light: 'Light', dark: 'Dark', bright: 'Bright' }, language: 'العربية',
   adminTitle: 'Review large circles', noPending: 'No circles waiting for review.', openNote: 'Open note', approveCircle: 'Approve circle', rejectCircle: 'Reject with a note', organizer: 'Organizer',
+  draw: {
+    title: 'The official draw', live: 'Official draw — live', replay: 'Watch the draw again', skip: 'Skip to the result',
+    startsIn: (n) => `The wheel starts in ${n}`, waiting: 'Computing the result and checking it against the fingerprint…', firstTurn: 'First payout',
+    verifiedLine: 'The result matches the fingerprint published before the draw; any member can verify it.', verifiedBadge: 'Matches the published fingerprint ✓',
+    saveImage: 'Save and share the result image', cardTitle: 'Draw result', fingerprint: 'Fingerprint',
+    watch: 'Watch the wheel', watchAndImage: 'Watch the wheel and the result image', execute: 'Start the draw on the wheel',
+    fairness: 'The wheel shows the verifiable draw, it does not decide it: the order is fixed by a fingerprint published in advance and the organizer’s phrase.',
+    inviteTitle: 'Invite members to watch the draw', inviteAt: 'Draw time (optional)', inviteNow: 'Send the invitation to everyone',
+    invited: (n) => `Invitation sent to ${n} members and recorded in the chat.`, liveHint: 'Stay on this page: the wheel appears automatically when the draw starts.',
+  },
   cele: {
     close: 'Close', welcomeArt: 'A member welcoming you, surrounded by the app’s features: draw, approval, receipts, chat, reminders, privacy',
     drawTitle: 'The draw is done! Here is the payout order', orderTitle: 'Order adopted by every member', paidTitle: 'Payment complete',

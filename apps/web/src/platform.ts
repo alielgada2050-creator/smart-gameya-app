@@ -96,3 +96,25 @@ function isDarkColor(c: string) {
   const h = toHex(c); const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
 }
+
+/**
+ * Share or save a generated image (the draw result card). Apps: native share sheet. Browsers: the system share sheet when it
+ * accepts files, otherwise the in-app viewer (long-press / right-click to save) plus a download attempt.
+ */
+export async function shareImage(blob: Blob, name: string, title: string): Promise<'shared' | 'shown'> {
+  if (isNative) {
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')]);
+    const res = await Filesystem.writeFile({ path: `files/${name}`, data: await blobToBase64(blob), directory: Directory.Cache, recursive: true });
+    await Share.share({ title, url: res.uri, dialogTitle: title }).catch(() => {});
+    return 'shared';
+  }
+  const file = new File([blob], name, { type: blob.type });
+  const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
+  if (nav.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title } as ShareData); return 'shared'; } catch { /* refused or cancelled: show it instead */ }
+  }
+  const url = URL.createObjectURL(blob);
+  dispatchEvent(new CustomEvent('sg:view-image', { detail: url }));
+  try { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch { /* downloads may be blocked */ }
+  return 'shown';
+}
