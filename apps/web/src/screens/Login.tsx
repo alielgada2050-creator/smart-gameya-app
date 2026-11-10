@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { isNative } from '../platform.ts';
 import { api, googleSignIn, normalizePhone, requestCode, verifyCode, type SessionUser } from '../api.ts';
-import { ErrorNote, Figure } from '../components.tsx';
+import { ErrorNote } from '../components.tsx';
 import { useT } from '../i18n.ts';
+import { WelcomeScene } from '../illustrations/Scenes.tsx';
 
 declare global { interface Window { google?: any } }
 
@@ -69,7 +70,7 @@ export function Login({ onSignedIn }: { onSignedIn: (u: SessionUser) => void }) 
   return (
     <div className="narrow stack">
       <section className="stack-sm" style={{ textAlign: 'center', paddingTop: 8 }}>
-        <Figure name="vault" label={t.tagline} hero play />
+        <WelcomeScene label={t.cele.welcomeArt} />
         <h1>{t.appName}</h1>
         <p className="muted">{t.tagline}</p>
       </section>

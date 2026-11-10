@@ -63,6 +63,12 @@ const ar = {
   install: 'ثبّت التطبيق', offline: 'أنت غير متصل. ستظهر آخر بيانات محمّلة، والإرسال يعمل عند عودة الاتصال.', iosInstall: 'لتثبيته على آيفون: افتح زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».', installed: 'التطبيق مثبّت على هذا الجهاز.',
   appearance: 'المظهر', skins: { auto: 'تلقائي', light: 'فاتح', dark: 'داكن', bright: 'ساطع' } as Record<string, string>, language: 'English',
   adminTitle: 'مراجعة الجمعيات الكبيرة', noPending: 'لا توجد جمعيات بانتظار المراجعة.', openNote: 'افتح السند', approveCircle: 'اعتمد الجمعية', rejectCircle: 'ارفض مع ملاحظة', organizer: 'المنظم',
+  cele: {
+    close: 'إغلاق', welcomeArt: 'عضوة ترحّب بك وحولها مزايا التطبيق: القرعة، الاعتماد، الإيصالات، المحادثة، التذكيرات، الخصوصية',
+    drawTitle: 'تمت القرعة! هذا ترتيب القبض', orderTitle: 'اعتُمد الترتيب بموافقة الجميع', paidTitle: 'اكتملت الدفعة',
+    paidBody: 'أكدتَ الاستلام؛ وُثّقت العملية في سجل الجمعية.', createdTitle: 'أُنشئت جمعيتك', createdBody: 'ادعُ من تثق بهم من صفحة الجمعية.',
+    joinedTitle: 'أهلاً بك في الجمعية', joinedBody: 'ستصلك التذكيرات قبل كل موعد.',
+  },
   ord: {
     title: 'طريقة ترتيب القبض', modes: { LOTTERY: 'القرعة', AGREED: 'بالاتفاق', PRIORITY: 'بالأولوية' } as Record<string, string>,
     modeHint: { LOTTERY: 'قرعة قابلة للتحقق: بصمة معلنة قبل السحب وموافقة عضو آخر.', AGREED: 'يقترح المنظم ترتيباً تتفقون عليه في المحادثة، ويُعتمد بموافقة جميع الأعضاء.', PRIORITY: 'يعلن كل عضو أولويته، ويقترح المساعد الذكي ترتيباً يُعتمد بموافقة جميع الأعضاء.' } as Record<string, string>,
@@ -150,6 +156,12 @@ const en: Dict = {
   install: 'Install app', offline: 'You’re offline. Last loaded data is shown; sending works when you reconnect.', iosInstall: 'To install on iPhone: tap Share, then “Add to Home Screen”.', installed: 'The app is installed on this device.',
   appearance: 'Appearance', skins: { auto: 'Automatic', light: 'Light', dark: 'Dark', bright: 'Bright' }, language: 'العربية',
   adminTitle: 'Review large circles', noPending: 'No circles waiting for review.', openNote: 'Open note', approveCircle: 'Approve circle', rejectCircle: 'Reject with a note', organizer: 'Organizer',
+  cele: {
+    close: 'Close', welcomeArt: 'A member welcoming you, surrounded by the app’s features: draw, approval, receipts, chat, reminders, privacy',
+    drawTitle: 'The draw is done! Here is the payout order', orderTitle: 'Order adopted by every member', paidTitle: 'Payment complete',
+    paidBody: 'You confirmed receipt; it is recorded in the circle’s log.', createdTitle: 'Your circle is created', createdBody: 'Invite people you trust from the circle page.',
+    joinedTitle: 'Welcome to the circle', joinedBody: 'You’ll get reminders before every due date.',
+  },
   ord: {
     title: 'How the payout order is set', modes: { LOTTERY: 'Draw', AGREED: 'By agreement', PRIORITY: 'By priority' },
     modeHint: { LOTTERY: 'A verifiable draw: fingerprint published before the draw and approved by another member.', AGREED: 'The organizer proposes an order you agree on in the chat; it takes effect when every member approves.', PRIORITY: 'Each member states their priority, the AI assistant suggests an order, and it takes effect when every member approves.' },

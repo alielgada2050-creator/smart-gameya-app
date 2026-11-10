@@ -4,6 +4,7 @@ import { EmptyState, ErrorNote, Loading, Pill, useLoad } from '../components.tsx
 import { date, money, useT } from '../i18n.ts';
 import { Icon } from '../shell/icons.tsx';
 import { tick } from '../platform.ts';
+import { celebrate } from '../illustrations/Celebration.tsx';
 
 /** Three-step progress: sender declared → organizer approved (when required) → recipient confirmed. */
 function Steps({ status, needsOrganizer }: { status: string; needsOrganizer: boolean }) {
@@ -147,7 +148,7 @@ export function Obligations({ gamiyaId, onChange }: { gamiyaId?: string; onChang
 
   async function act(id: string, path: string, body: object | undefined, m: string) {
     setBusy(id); setError(null); setMsg('');
-    try { await api('POST', `/installments/${id}/${path}`, body); done(m); } catch (e) { setError(e); } finally { setBusy(null); }
+    try { await api('POST', `/installments/${id}/${path}`, body); done(m); return true; } catch (e) { setError(e); return false; } finally { setBusy(null); }
   }
 
   const head = (i: any, who: string) => (
@@ -202,7 +203,7 @@ export function Obligations({ gamiyaId, onChange }: { gamiyaId?: string; onChang
                 <Match item={i} />
                 <div className="row-start">
                   {i.receiptFileId && <button className="btn btn-secondary" onClick={() => openFile(i.receiptFileId).catch(setError)}><Icon name="file" />{t.viewReceipt}</button>}
-                  <button className="btn btn-primary" disabled={busy === i.installmentId} onClick={() => act(i.installmentId, 'confirm-received', undefined, t.confirmedMsg)}>{t.confirm}</button>
+                  <button className="btn btn-primary" disabled={busy === i.installmentId} onClick={() => act(i.installmentId, 'confirm-received', undefined, t.confirmedMsg).then((ok) => ok && celebrate({ title: t.cele.paidTitle, body: t.cele.paidBody }))}>{t.confirm}</button>
                 </div>
                 {reasonInput(i.installmentId, t.disputeReason)}
                 <button className="btn btn-danger" disabled={busy === i.installmentId || (reason[i.installmentId] ?? '').trim().length < 3}

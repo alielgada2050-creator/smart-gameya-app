@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { api } from '../api.ts';
 import { ErrorNote, useLoad } from '../components.tsx';
 import { date, useT } from '../i18n.ts';
+import { celebrate } from '../illustrations/Celebration.tsx';
 
 /**
  * How the payout order is set: verifiable draw, members' agreement, or priority with the AI assistant's suggestion.
@@ -206,7 +207,11 @@ function OpenProposal({ id, p, isOrganizer, onChange }: { id: string; p: any; is
   const [busy, setBusy] = useState(false);
   async function run(path: string, body?: object) {
     setBusy(true); setError(null);
-    try { await api('POST', `/gamiyas/${id}/order/proposals/${p.id}/${path}`, body); onChange(); } catch (e) { setError(e); } finally { setBusy(false); }
+    try {
+      const r = await api<any>('POST', `/gamiyas/${id}/order/proposals/${p.id}/${path}`, body);
+      if (r?.status === 'ADOPTED') celebrate({ title: t.cele.orderTitle, items: p.order.map((o: any) => o.fullName) });
+      onChange();
+    } catch (e) { setError(e); } finally { setBusy(false); }
   }
   return (
     <div className="stack-sm turn sub-panel" data-testid="open-proposal">

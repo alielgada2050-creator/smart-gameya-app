@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../api.ts';
 import { ErrorNote, useLoad } from '../components.tsx';
 import { useT } from '../i18n.ts';
+import { celebrate } from '../illustrations/Celebration.tsx';
 
 export function Join({ code: initial }: { code: string }) {
   const { t } = useT();
@@ -17,6 +18,7 @@ export function Join({ code: initial }: { code: string }) {
     try {
       const c = await api<any>('POST', `/invitations/${encodeURIComponent(code.trim())}/accept`, { agreementVersionId: agreement.data.id });
       location.hash = `/c/${c.id}`;
+      celebrate({ title: t.cele.joinedTitle, body: t.cele.joinedBody });
     } catch (err) { setError(err); } finally { setBusy(false); }
   }
 

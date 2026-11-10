@@ -1,3 +1,5 @@
+import { flushSync } from 'react-dom';
+import { Celebration } from './illustrations/Celebration.tsx';
 import { useEffect, useState } from 'react';
 import { api, currentUser, hasSession, logout, type SessionUser } from './api.ts';
 import { I18n, dictionaries } from './i18n.ts';
@@ -16,7 +18,12 @@ import { Admin } from './screens/Admin.tsx';
 function useHash() {
   const [hash, setHash] = useState(() => location.hash.slice(1) || '/');
   useEffect(() => {
-    const on = () => { setHash(location.hash.slice(1) || '/'); window.scrollTo(0, 0); };
+    const on = () => {
+      const next = () => { flushSync(() => setHash(location.hash.slice(1) || '/')); window.scrollTo(0, 0); };
+      // Short cross-fade between screens where the browser supports View Transitions; instant otherwise or with reduced motion.
+      const d = document as any;
+      if (d.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) d.startViewTransition(next); else next();
+    };
     addEventListener('hashchange', on);
     return () => removeEventListener('hashchange', on);
   }, []);
@@ -68,6 +75,7 @@ export function App() {
         {screen}
       </Shell>
       <ImageViewer label={t.closeViewer} />
+      <Celebration closeLabel={t.cele.close} />
     </I18n.Provider>
   );
 }

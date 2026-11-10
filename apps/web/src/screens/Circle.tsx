@@ -7,6 +7,7 @@ import { Obligations } from './Obligations.tsx';
 import { Chat } from './Chat.tsx';
 import { PayoutOrder } from './Ordering.tsx';
 import { WEB_ORIGIN, isNative, shareLink } from '../platform.ts';
+import { celebrate } from '../illustrations/Celebration.tsx';
 
 export function Circle({ id, tab }: { id: string; tab: string }) {
   const { t, lang } = useT();
@@ -277,7 +278,10 @@ function Lottery({ id, circle, state, onChange }: { id: string; circle: any; sta
           {state.preparedByMe && state.approvals > 0 && (
             <>
               <label>{t.entropy}<input value={entropy} onChange={(e) => setEntropy(e.target.value)} minLength={8} maxLength={200} /></label>
-              <button className="btn btn-primary" disabled={busy || entropy.trim().length < 8} onClick={() => run(() => api('POST', `/gamiyas/${id}/lottery/execute`, { publicEntropy: entropy.trim() }))}>{t.execute}</button>
+              <button className="btn btn-primary" disabled={busy || entropy.trim().length < 8} onClick={() => run(async () => {
+                const r = await api<any>('POST', `/gamiyas/${id}/lottery/execute`, { publicEntropy: entropy.trim() });
+                celebrate({ title: t.cele.drawTitle, items: [...r.record.order].sort((a: any, b: any) => a.position - b.position).map((o: any) => name(o.memberId)) });
+              })}>{t.execute}</button>
             </>
           )}
         </div>

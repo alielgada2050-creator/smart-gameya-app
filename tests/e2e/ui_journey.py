@@ -120,6 +120,10 @@ def run_draw(org, approver, circle_name):
     org.reload()
     org.get_by_role("button", name="نفّذ القرعة").click()
     expect(org.get_by_test_id("verification")).to_contain_text("تحققنا")
+    cele = org.get_by_test_id("celebration")
+    expect(cele).to_contain_text("تمت القرعة")                        # the drawn order is revealed name by name
+    cele.get_by_role("button", name="إغلاق").click()
+    expect(cele).to_have_count(0)
 
 
 with sync_playwright() as p:
@@ -135,7 +139,13 @@ with sync_playwright() as p:
     # 1. Sign-in (hero figure) and validation
     B.goto(BASE)
     expect(B.locator("html")).to_have_attribute("dir", "rtl")
-    expect(B.locator(".figure-box [data-hairline]")).to_have_count(1)
+    welcome = B.get_by_role("img", name=re.compile("عضوة ترحّب بك"))
+    expect(welcome).to_be_visible()                                    # animated sign-in illustration
+    anim = lambda pg: pg.evaluate("getComputedStyle(document.querySelector('.ill-welcome .ill-badge')).animationName")
+    if "ill-pop" not in anim(B): problems.append(f"welcome badges not animated: {anim(B)}")
+    B.emulate_media(reduced_motion="reduce")
+    if anim(B) != "none": problems.append("animation ignores reduced motion")
+    B.emulate_media(reduced_motion="no-preference")
     shot(B, "01-login-phone")
     B.get_by_label("رقم الجوال").fill("12345")
     B.get_by_role("button", name="أرسل الرمز").click()
@@ -193,6 +203,8 @@ with sync_playwright() as p:
                 else:
                     pg.get_by_role("button", name="وصلني المبلغ").first.click()
                     expect(pg.get_by_text("تم التأكيد")).to_be_visible()
+                    expect(pg.get_by_test_id("celebration")).to_contain_text("اكتملت الدفعة")
+                    pg.get_by_test_id("celebration").get_by_role("button", name="إغلاق").click()
                 progressed = True
             elif pg.get_by_role("button", name="احسم").count():
                 pg.get_by_label("القرار").first.select_option("RECEIPT_VALID")
@@ -279,6 +291,10 @@ with sync_playwright() as p:
     for pg in (B, C):
         pg.reload()
         pg.get_by_role("button", name="أوافق على هذا الترتيب").click()
+    expect(C.get_by_test_id("celebration")).to_contain_text("اعتُمد الترتيب بموافقة الجميع")
+    expect(C.get_by_test_id("celebration").locator(".reveal-list li").first).to_contain_text("خالد")
+    shot(C, "26-celebration-phone")
+    C.get_by_test_id("celebration").get_by_role("button", name="إغلاق").click()
     expect(C.get_by_test_id("order-adopted")).to_be_visible()
     open_circle(A, "جمعية الأولوية")
     expect(A.get_by_test_id("order-adopted")).to_contain_text("بالاتفاق")
@@ -393,4 +409,4 @@ with sync_playwright() as p:
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("UI journey passed: payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")
+print("UI journey passed: animated sign-in illustration (stops under reduced motion), celebrations with name-by-name reveal after the draw / adoption / payment, payout order by priority (AI suggestion) → objection → agreed order approved by all, smart transfer card + automatic match, payout methods, identity logo, medium circle (reject, dispute, resolve, confirm, complete), chat + assistant, large circle (notes → platform approval), 4 skins, RTL/LTR, notifications, adaptive sidebar/bottom nav, install panel, breakpoints 375/768/1024/1440 + landscape with no horizontal scroll")

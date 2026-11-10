@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api.ts';
 import { ErrorNote, Ring, TierChip, useLoad } from '../components.tsx';
 import { date, money, useT } from '../i18n.ts';
+import { celebrate } from '../illustrations/Celebration.tsx';
 
 const nextMonthFirst = () => {
   const d = new Date();
@@ -39,6 +40,7 @@ export function CreateCircle() {
     try {
       const c = await api<any>('POST', '/gamiyas', { ...f, memberCount: Number(f.memberCount), graceDays: Number(f.graceDays), agreementVersionId: agreement.data.id });
       location.hash = `/c/${c.id}`;
+      celebrate({ title: t.cele.createdTitle, body: t.cele.createdBody });
     } catch (err) { setError(err); } finally { setBusy(false); }
   }
 
