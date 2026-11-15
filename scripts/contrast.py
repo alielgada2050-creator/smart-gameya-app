@@ -4,7 +4,7 @@ css = pathlib.Path(__file__).resolve().parent.parent.joinpath("apps/web/src/styl
 def block(start):
     i = css.index(start); j = css.index("}", i); return dict(re.findall(r"--([\w-]+):\s*(#[0-9A-Fa-f]{6})", css[i:j]))
 light = block(":root {")
-skins = {"light": light, "dark": {**light, **block(":root[data-skin='dark'] {")}, "bright": {**light, **block(":root[data-skin='bright'] {")}}
+skins = {"light": light, "dark": {**light, **block(":root[data-skin='dark'] {")}, "comfort": {**light, **block(":root[data-skin='comfort'] {")}, "bright": {**light, **block(":root[data-skin='bright'] {")}}
 def lum(h):
     c = [int(h[k:k+2], 16) / 255 for k in (1, 3, 5)]
     c = [x / 12.92 if x <= .03928 else ((x + .055) / 1.055) ** 2.4 for x in c]

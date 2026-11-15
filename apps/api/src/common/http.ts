@@ -68,7 +68,7 @@ export function parseId(v: string): string {
   return v;
 }
 
-export interface AuthUser { id: string; phone: string }
+export interface AuthUser { id: string; phone: string | null }
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => ctx.switchToHttp().getRequest().user);
 export const ClientIp = createParamDecorator((_: unknown, ctx: ExecutionContext): string | null => ctx.switchToHttp().getRequest().ip ?? null);
 export const CorrelationId = createParamDecorator((_: unknown, ctx: ExecutionContext): string => ctx.switchToHttp().getRequest().correlationId);

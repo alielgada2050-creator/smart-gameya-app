@@ -61,8 +61,8 @@ const ar = {
   logoName: 'اسم الجهة', logoFile: 'ملف الشعار (PNG شفاف)', addLogo: 'أضف الشعار', showInHeader: 'اعرضه في الرأس', up: 'للأعلى',
   installTitle: 'التطبيق على أجهزتك', installExplain: 'ثبّت جمعيتي على الكمبيوتر أو الجوال ليفتح كتطبيق مستقل وبأيقونة خاصة. بياناتك المالية لا تُخزَّن على الجهاز.', installHint: 'إن لم يظهر زر التثبيت، استخدم أيقونة التثبيت في شريط عنوان المتصفح أو قائمته.',
   install: 'ثبّت التطبيق', offline: 'أنت غير متصل. ستظهر آخر بيانات محمّلة، والإرسال يعمل عند عودة الاتصال.', iosInstall: 'لتثبيته على آيفون: افتح زر المشاركة ثم «إضافة إلى الشاشة الرئيسية».', installed: 'التطبيق مثبّت على هذا الجهاز.',
-  appearance: 'المظهر', skins: { auto: 'تلقائي', light: 'فاتح', dark: 'داكن', bright: 'ساطع' } as Record<string, string>, language: 'English',
-  adminTitle: 'مراجعة الجمعيات الكبيرة', noPending: 'لا توجد جمعيات بانتظار المراجعة.', openNote: 'افتح السند', approveCircle: 'اعتمد الجمعية', rejectCircle: 'ارفض مع ملاحظة', organizer: 'المنظم',
+  appearance: 'المظهر', skins: { auto: 'تلقائي', light: 'فاتح', dark: 'داكن', comfort: 'مريح للعين', bright: 'تباين عالٍ' } as Record<string, string>, language: 'English',
+  gsign: { title: 'ادخل بحساب Google', body: 'يدخل الأهل والأصدقاء بحساباتهم في Google مباشرة، بلا كلمة مرور ولا رمز جوال. لا نطّلع إلا على الاسم والبريد الموثّق.', notConfigured: 'لم يُفعَّل الدخول بعد: يضيف مشغّل المنصة معرّف Google (GOOGLE_CLIENT_ID).', native: 'الدخول بحساب Google متاح من المتصفح. افتح الموقع لتسجيل الدخول.' }, stats: { title: 'حصر المنصة', users: 'المستخدمون', week: 'آخر ٧ أيام', month: 'آخر ٣٠ يومًا', circles: 'الجمعيات', members: 'الأعضاء النشطون', pending: 'بانتظار المراجعة' }, adminTitle: 'مراجعة الجمعيات الكبيرة', noPending: 'لا توجد جمعيات بانتظار المراجعة.', openNote: 'افتح السند', approveCircle: 'اعتمد الجمعية', rejectCircle: 'ارفض مع ملاحظة', organizer: 'المنظم',
   draw: {
     title: 'القرعة الرسمية', live: 'القرعة الرسمية — مباشر', replay: 'إعادة مشاهدة القرعة', skip: 'تخطَّ إلى النتيجة',
     startsIn: (n: number) => `تبدأ العجلة خلال ${n}`, waiting: 'نحسب النتيجة ونطابقها مع البصمة…', firstTurn: 'صاحب الدور الأول',
@@ -243,8 +243,8 @@ const en: Dict = {
   logoName: 'Organisation name', logoFile: 'Logo file (transparent PNG)', addLogo: 'Add logo', showInHeader: 'Show in header', up: 'Move up',
   installTitle: 'The app on your devices', installExplain: 'Install Jamiyati on your computer or phone so it opens as its own app with its own icon. Your financial data is not stored on the device.', installHint: 'If no install button shows, use the install icon in the browser’s address bar or its menu.',
   install: 'Install app', offline: 'You’re offline. Last loaded data is shown; sending works when you reconnect.', iosInstall: 'To install on iPhone: tap Share, then “Add to Home Screen”.', installed: 'The app is installed on this device.',
-  appearance: 'Appearance', skins: { auto: 'Automatic', light: 'Light', dark: 'Dark', bright: 'Bright' }, language: 'العربية',
-  adminTitle: 'Review large circles', noPending: 'No circles waiting for review.', openNote: 'Open note', approveCircle: 'Approve circle', rejectCircle: 'Reject with a note', organizer: 'Organizer',
+  appearance: 'Appearance', skins: { auto: 'Automatic', light: 'Light', dark: 'Dark', comfort: 'Eye comfort', bright: 'High contrast' }, language: 'العربية',
+  gsign: { title: 'Continue with Google', body: 'Family and friends sign in with their Google account: no password and no mobile code. We only see the name and verified email.', notConfigured: 'Sign-in is not set up yet: the platform operator adds a Google client id (GOOGLE_CLIENT_ID).', native: 'Google sign-in works in the browser. Open the website to sign in.' }, stats: { title: 'Platform headcount', users: 'Users', week: 'Last 7 days', month: 'Last 30 days', circles: 'Circles', members: 'Active members', pending: 'Awaiting review' }, adminTitle: 'Review large circles', noPending: 'No circles waiting for review.', openNote: 'Open note', approveCircle: 'Approve circle', rejectCircle: 'Reject with a note', organizer: 'Organizer',
   draw: {
     title: 'The official draw', live: 'Official draw — live', replay: 'Watch the draw again', skip: 'Skip to the result',
     startsIn: (n) => `The wheel starts in ${n}`, waiting: 'Computing the result and checking it against the fingerprint…', firstTurn: 'First payout',

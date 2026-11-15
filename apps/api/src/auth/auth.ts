@@ -34,8 +34,9 @@ export class AuthService {
   #jwks: JWTVerifyGetKey | null = null;
 
   /**
-   * Sign in with Google (ID token from Google Identity Services). A Google account alone is not enough:
-   * the first time, the person must also verify a mobile number, which becomes the account (registration by mobile).
+   * Sign in with Google (ID token from Google Identity Services).
+   * With mobile sign-in on, the first Google sign-in also verifies a mobile number, which becomes the account.
+   * With it off (no SMS provider), the verified Google account is the account: family and friends sign in with Google only.
    */
   async googleSignIn(idToken: string, correlationId: string) {
     const g = this.config.google;
@@ -54,6 +55,18 @@ export class AuthService {
         await this.audit.log(c, { actorId: user.id, action: 'USER_LOGIN_GOOGLE', entity: 'user', entityId: user.id, correlationId });
         const { _rowId, ...tokens } = await this.issueTokens(c, user.id, user.phone_e164, randomUUID());
         return { ...tokens, user: { id: user.id, fullName: user.full_name, kycStatus: user.kyc_status } };
+      });
+    }
+    if (!this.config.phoneSignIn) {
+      return this.db.tx(async (c) => {
+        const u = (await c.query(
+          `INSERT INTO users (google_sub, email, full_name) VALUES ($1, $2, $3)
+           ON CONFLICT (google_sub) DO UPDATE SET email = COALESCE(users.email, EXCLUDED.email) RETURNING id, full_name, kyc_status, email`,
+          [claims.sub, typeof claims.email === 'string' && !(await c.query(`SELECT 1 FROM users WHERE lower(email)=lower($1)`, [claims.email])).rowCount ? claims.email.toLowerCase() : null, String(claims.name ?? '').trim().slice(0, 80) || 'عضو جديد'])).rows[0];
+        if (u.email && this.config.platformAdminEmails?.includes(u.email)) await c.query(`UPDATE users SET platform_role='PLATFORM_ADMIN' WHERE id=$1 AND platform_role='NONE'`, [u.id]);
+        await this.audit.log(c, { actorId: u.id, action: 'USER_REGISTERED_GOOGLE', entity: 'user', entityId: u.id, correlationId });
+        const { _rowId, ...tokens } = await this.issueTokens(c, u.id, null, randomUUID());
+        return { ...tokens, user: { id: u.id, fullName: u.full_name, kycStatus: u.kyc_status } };
       });
     }
     const linkToken = await this.jwt.signAsync({ typ: 'google-link', gsub: claims.sub, email: claims.email ?? null, name: claims.name ?? null }, { expiresIn: '10m', algorithm: 'HS256' });
@@ -80,6 +93,7 @@ export class AuthService {
   }
 
   async requestOtp(phoneNumber: string, correlationId: string) {
+    if (!this.config.phoneSignIn) throw new AppError(404, 'PHONE_SIGN_IN_DISABLED', 'mobile-code sign-in is not available; sign in with Google');
     const { rows } = await this.db.query<{ n: string }>(
       "SELECT count(*) AS n FROM otp_challenges WHERE phone_e164=$1 AND created_at > now() - interval '15 minutes'", [phoneNumber]);
     if (Number(rows[0].n) >= OTP_MAX_PER_WINDOW) throw new AppError(429, 'RATE_LIMITED', 'too many codes requested; try later');
@@ -93,6 +107,7 @@ export class AuthService {
   }
 
   async verifyOtp(input: z.infer<typeof VerifySchema>, correlationId: string) {
+    if (!this.config.phoneSignIn) throw new AppError(404, 'PHONE_SIGN_IN_DISABLED', 'mobile-code sign-in is not available; sign in with Google');
     const link = input.linkToken ? await this.readLink(input.linkToken) : null;
     return this.db.tx(async (c) => {
       const { rows } = await c.query(
@@ -132,7 +147,7 @@ export class AuthService {
   private sha(token: string) { return createHash('sha256').update(token).digest('hex'); }
 
   /** Access JWT (15 min) + opaque refresh token (30 days). Only the refresh token's hash is stored. */
-  private async issueTokens(c: Queryable, userId: string, phone: string, familyId: string) {
+  private async issueTokens(c: Queryable, userId: string, phone: string | null, familyId: string) {
     const refreshToken = randomBytes(32).toString('base64url');
     const row = (await c.query(
       `INSERT INTO refresh_tokens (user_id, family_id, token_hash, expires_at) VALUES ($1,$2,$3, now() + make_interval(days => $4)) RETURNING id`,

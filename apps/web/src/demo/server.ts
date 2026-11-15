@@ -269,7 +269,7 @@ export async function upload(gamiyaId: string, me: string, purpose: string, file
 }
 
 // auth
-on('GET', '/config/public', () => ({ googleClientId: null, circleCountries: ['SA', 'EG', 'AE'], model: 'A', demo: true }));
+on('GET', '/config/public', () => ({ googleClientId: null, phoneSignIn: true, circleCountries: ['SA', 'EG', 'AE'], model: 'A', demo: true }));
 on('GET', '/agreements/current', () => db.agreement);
 on('POST', '/auth/otp/request', ({ body }) => {
   if (!/^\+(9665\d{8}|201[0125]\d{8}|9715\d{8})$/.test(body.phone ?? '')) throw bad('INVALID_PHONE', 'invalid phone');
@@ -504,7 +504,8 @@ on('POST', '/gamiyas/:id/invitations/direct', ({ me, params, body }) => {
   const { g, m } = membership(params[0], me);
   if (m.role !== 'MANAGER') throw forbidden('only the circle manager can do this');
   if (g.status !== 'RECRUITING') throw conflict('NOT_RECRUITING', 'circle is not accepting members');
-  const phones: string[] = [...new Set<string>(body.phones ?? [])];
+  const picked = (body.userIds ?? []).map((id: string) => db.users.find((u) => u.id === id)?.phone).filter(Boolean);
+  const phones: string[] = [...new Set<string>([...(body.phones ?? []), ...picked])];
   if (!phones.length || phones.some((p) => !/^(\+9665\d{8}|\+201[0125]\d{8}|\+9715\d{8})$/.test(p))) throw bad('VALIDATION', 'phones must be E.164 mobile numbers');
   const code = 'DI' + uuid().replace(/-/g, '').slice(0, 10);
   db.invitations.push({ code, gamiyaId: g.id, maxUses: phones.length, uses: 0, expiresAt: new Date(Date.now() + 7 * 864e5).toISOString() });
@@ -874,6 +875,13 @@ on('POST', '/gamiyas/:id/platform-review', ({ me, params }) => {
   return { platformApproval: 'PENDING' };
 });
 const requireReviewer = (me: string) => { if (user(me).platformRole === 'NONE') throw notFound(); };
+on('GET', '/admin/stats', ({ me }) => {
+  requireReviewer(me);
+  const byStatus: Record<string, number> = {};
+  for (const g of db.circles) byStatus[g.status] = (byStatus[g.status] ?? 0) + 1;
+  return { users: { total: db.users.length, last7Days: db.users.length, last30Days: db.users.length }, circles: { total: db.circles.length, byStatus },
+    memberships: db.members.length, activeMembers: new Set(db.members.map((m) => m.userId)).size, pendingReviews: db.circles.filter((g) => g.platformApproval === 'PENDING').length };
+});
 on('GET', '/admin/reviews', ({ me }) => {
   requireReviewer(me);
   return db.circles.filter((g) => g.platformApproval === 'PENDING').map((g) => ({

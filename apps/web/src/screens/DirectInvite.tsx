@@ -19,12 +19,13 @@ export function DirectInvite({ id, name, remaining }: { id: string; name: string
   const [busy, setBusy] = useState(false);
   const parsed = useMemo(() => typed.split(/[\s,،;]+/).filter(Boolean).map((x) => ({ raw: x, phone: normalizePhone(x) })), [typed]);
   const bad = parsed.filter((p) => !p.phone);
-  const phones = [...new Set([...picked, ...parsed.flatMap((p) => (p.phone ? [p.phone] : []))])];
+  const phones = [...new Set(parsed.flatMap((p) => (p.phone ? [p.phone] : [])))];
+  const total = picked.size + phones.length;
   const open = (sug.data ?? []).filter((s) => s.invited !== 'PENDING' && s.invited !== 'ACCEPTED');
 
   async function send() {
     setBusy(true); setError(null);
-    try { setRes(await api('POST', `/gamiyas/${id}/invitations/direct`, { phones })); setPicked(new Set()); setTyped(''); sug.reload(); }
+    try { setRes(await api('POST', `/gamiyas/${id}/invitations/direct`, { phones, userIds: [...picked] })); setPicked(new Set()); setTyped(''); sug.reload(); }
     catch (e) { setError(e); } finally { setBusy(false); }
   }
   const toggle = (p: string) => { const n = new Set(picked); n.has(p) ? n.delete(p) : n.add(p); setPicked(n); };
@@ -37,15 +38,15 @@ export function DirectInvite({ id, name, remaining }: { id: string; name: string
         <div className="stack-sm">
           <div className="row">
             <h3>{t.direct.people}</h3>
-            <button type="button" className="btn btn-ghost btn-xs" onClick={() => setPicked(picked.size === open.length ? new Set() : new Set(open.map((s) => s.phone)))}>
+            <button type="button" className="btn btn-ghost btn-xs" onClick={() => setPicked(picked.size === open.length ? new Set() : new Set(open.map((s) => s.userId)))}>
               {picked.size === open.length ? t.direct.none : t.direct.all(open.length)}</button>
           </div>
           <ul className="pick-list">
             {open.map((s) => (
               <li key={s.userId}>
-                <label className="check"><input type="checkbox" checked={picked.has(s.phone)} onChange={() => toggle(s.phone)} />
+                <label className="check"><input type="checkbox" checked={picked.has(s.userId)} onChange={() => toggle(s.userId)} />
                   <span className="avatar-sm" aria-hidden="true">{s.fullName.slice(0, 1)}</span>
-                  <span className="stack-sm" style={{ gap: 0 }}><strong>{s.fullName}</strong><span className="muted small">{t.direct.via(s.via)} · …{s.phoneLast4}</span></span>
+                  <span className="stack-sm" style={{ gap: 0 }}><strong>{s.fullName}</strong><span className="muted small">{t.direct.via(s.via)}{s.phoneLast4 ? ` · …${s.phoneLast4}` : ''}</span></span>
                 </label>
               </li>
             ))}
@@ -57,7 +58,7 @@ export function DirectInvite({ id, name, remaining }: { id: string; name: string
       </label>
       <p id="direct-hint" className={`small ${bad.length ? 'field-error' : 'muted'}`}>{bad.length ? t.direct.bad(bad.map((b) => b.raw).join('، ')) : t.direct.hint}</p>
       <ErrorNote error={error} />
-      <button className="btn btn-primary" disabled={busy || phones.length === 0 || bad.length > 0} onClick={send}>{t.direct.send(phones.length)}</button>
+      <button className="btn btn-primary" disabled={busy || total === 0 || bad.length > 0} onClick={send}>{t.direct.send(total)}</button>
       {res && (
         <div className="stack-sm" aria-live="polite" data-testid="direct-result">
           {res.notified.length > 0 && <p className="notice ok small">{t.direct.notified(res.notified.map((n: any) => n.fullName).join('، '))}</p>}

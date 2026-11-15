@@ -1,6 +1,6 @@
 /*
  * Jamiyati design system — v3 (UI/UX Pro Max "Minimalism & Swiss", fintech trust profile) on the Wathiq skin shell.
- * Skins via data-skin: auto | light | dark | bright. Gold is the trust/primary colour and always carries navy text.
+ * Skins via data-skin: auto | light | dark | comfort (warm, low-glare) | bright (high contrast). Gold is the trust/primary colour and always carries navy text.
  * Adaptive navigation: sidebar ≥1024px, bottom tab bar below (UI/UX Pro Max: adaptive-navigation, bottom-nav-limit ≤5).
  */
 :root {
@@ -17,8 +17,8 @@
   --radius-lg: 18px; --radius: 12px; --radius-sm: 8px;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
   --dur-press: 120ms; --dur: 200ms; --ease: cubic-bezier(.2, 0, 0, 1);
-  --font: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
-  --font-display: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font: 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --font-display: var(--font);
   --sidebar-w: 248px; --topbar-h: 60px; --bottombar-h: 64px;
   /* circle types: two stops each, white glyph on top (≥ 4.5:1 against the darker stop, ≥ 3:1 against the lighter) */
   --g-FAMILY: #0F6B63, #14917F; --g-FRIENDS: #2445A8, #4A6BD6; --g-WORK: #334155, #57677E; --g-SCHOOL: #B3410E, #DB6A1B;
@@ -27,7 +27,7 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-skin='light']):not([data-skin='bright']) {
+  :root:not([data-skin='light']):not([data-skin='bright']):not([data-skin='comfort']) {
     --bg: #0A1417; --surface: #12211F; --surface-2: #1B2E2C; --ink: #F1F7F5; --muted: #A2B6B3; --line: #2A3F3D; --control-line: #6E8783;
     --accent: #3DD1BE; --accent-ink: #04201C; --accent-strong: #6BE3D3; --accent-tint: #0F3531; --accent-hover: #6BE3D3;
     --turn: #F2A93B; --turn-tint: #3A2A10; --turn-ink: #FBC874;
@@ -45,6 +45,13 @@
   --tier-s: #34D399; --tier-s-tint: #0F3B2E; --tier-m: #FBBF24; --tier-m-tint: #3A2E12; --tier-l: #C4B5FD; --tier-l-tint: #2E2650;
   --hero-a: #0E4B47; --hero-b: #1A2350;
   --focus: #93C5FD; --scrim: rgb(2 8 10 / .7); --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-pop: 0 16px 40px -12px rgb(0 0 0 / .7); color-scheme: dark;
+}
+:root[data-skin='comfort'] {
+  --bg: #F3EBDD; --surface: #FBF6EC; --surface-2: #EBE0CC; --ink: #2A2118; --muted: #5A4A3A; --line: #D8CAB0; --control-line: #857158;
+  --accent: #0E6258; --accent-ink: #FFFFFF; --accent-strong: #094A43; --accent-tint: #DCE9DC; --accent-hover: #094A43;
+  --turn: #E8A33A; --turn-tint: #F8E6C4; --turn-ink: #6B3A06; --turn-on: #2A2118;
+  --ok: #276A3C; --ok-tint: #D9ECD4; --danger: #A63232; --danger-tint: #F5DBD3; --info: #2B4F9E; --info-tint: #DCE4F3;
+  --hero-a: #0E5A52; --hero-b: #2A2A58; --focus: #2B55B8; --scrim: rgb(42 33 24 / .55); color-scheme: light;
 }
 :root[data-skin='bright'] {
   --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #EEF3F2; --ink: #000000; --muted: #1E293B; --line: #64748B; --control-line: #334155;
@@ -353,6 +360,7 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
   --ill-blob: #1B2A44; --ill-line: #0B1120; --ill-cloth: #3D5A92; --ill-thobe: #F1F5F9; --ill-badge: #E8EEF8; --ill-plus: #5B7BB8;
 }
 :root[data-skin='bright'] { --ill-blob: #FFF1D6; --ill-cloth: #1E3A6E; }
+:root[data-skin='comfort'] { --ill-blob: #EADFC8; --ill-badge: #FBF6EC; --ill-thobe: #FBF6EC; }
 
 .ill { display: block; width: 100%; height: auto; overflow: visible; }
 .ill-welcome { max-width: 380px; margin: 0 auto; }
@@ -433,7 +441,7 @@ details summary { font-weight: 600; min-height: 44px; display: flex; align-items
 [dir='rtl'] .reveal-list li { --dir: -1; }
 /* "auto" skin on a dark device: the illustrations follow too (not only the explicit dark skin). */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-skin='light']):not([data-skin='bright']) {
+  :root:not([data-skin='light']):not([data-skin='bright']):not([data-skin='comfort']) {
     --ill-blob: #1B2A44; --ill-line: #0B1120; --ill-cloth: #3D5A92; --ill-thobe: #F1F5F9; --ill-badge: #E8EEF8; --ill-plus: #5B7BB8;
   }
 }

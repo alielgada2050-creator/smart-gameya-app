@@ -1,4 +1,4 @@
-# Unit tests that need no database run on every push; the full API/browser suites run locally (scripts/test-*.sh).
+# Every push: unit tests, web + API builds, and the full API suite against a real Postgres 16.
 name: ci
 on: [push, pull_request]
 permissions:
@@ -6,6 +6,18 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -13,5 +25,7 @@ jobs:
       - run: npm ci
       - run: npm test -w @smart-gameya/financial-core
       - run: npm test -w @smart-gameya/ai-core
+      - run: python3 scripts/contrast.py
       - run: cd apps/web && npx tsc --noEmit -p tsconfig.json && npx vite build
-      - run: cd apps/api && npx tsc -p tsconfig.json
+      - run: bash scripts/test-api.sh
+        env: { DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sg_api_test' }

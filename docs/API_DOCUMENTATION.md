@@ -93,7 +93,11 @@
 ## الدخول بـ Google والإعداد العام
 | الطريقة | المسار | الوصف |
 |---|---|---|
-| POST | `/auth/google` | `{ idToken }` ← جلسة إن كان مرتبطاً، وإلا `{ needsPhone, linkToken }` |
+| POST | `/auth/google` | `{ idToken }` ← جلسة إن كان مرتبطاً. إن كان الدخول بالجوال مغلقاً (`phoneSignIn=false`، الإنتاج بلا SMS) يُنشأ الحساب من Google مباشرة؛ وإلا `{ needsPhone, linkToken }` |
+| POST | `/auth/otp/request`, `/auth/otp/verify` | 404 `PHONE_SIGN_IN_DISABLED` حين يكون الدخول بالجوال مغلقاً |
+| GET | `/config/public` | `{ googleClientId, phoneSignIn, circleCountries }` |
+| GET | `/admin/stats` | مراجعو المنصة فقط: `{ users: { total, last7Days, last30Days }, circles: { total, byStatus }, memberships, activeMembers, pendingReviews }` |
+| POST | `/gamiyas/:id/invitations/direct` | `{ phones?: E.164[], userIds?: uuid[] }` (واحد على الأقل). `userIds` لحسابات يشاركها المنظم جمعية فقط |
 | POST | `/auth/otp/verify` | يقبل `linkToken` لربط Google بالجوال |
 | GET | `/auth/me` | الملف والدور وحالة ربط Google |
 | GET | `/config/public` | `googleClientId` (عام بطبيعته) والدول المفعّلة |

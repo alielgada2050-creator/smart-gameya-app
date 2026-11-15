@@ -18,7 +18,7 @@ export class AuthGuard implements CanActivate {
     const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
     if (!token) throw new AppError(401, 'UNAUTHENTICATED', 'missing bearer token');
     try {
-      const p = await this.jwt.verifyAsync<{ sub: string; phone: string; typ: string }>(token, { algorithms: ['HS256'] });
+      const p = await this.jwt.verifyAsync<{ sub: string; phone: string | null; typ: string }>(token, { algorithms: ['HS256'] });
       if (p.typ !== 'access') throw new Error('wrong token type');
       req.user = { id: p.sub, phone: p.phone };
       return true;

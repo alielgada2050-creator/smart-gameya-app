@@ -14,6 +14,7 @@ export function testConfigExtras(overrides: Record<string, unknown> = {}) {
     tierLimits: { ...TIER_LIMITS },
     platformAdminPhones: ['+966500000900'],
     remindersEveryMinutes: 0,
+    phoneSignIn: true,
     ...overrides,
   };
 }

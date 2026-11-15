@@ -113,6 +113,9 @@ describe('large circle: promissory notes + platform approval', () => {
     ADMIN = await login('مراجع المنصة', '+966500000900');
     const me = await api(ADMIN, 'get', '/api/v1/auth/me');
     assert.equal(me.body.platformRole, 'PLATFORM_ADMIN');
+    assert.equal((await api(M1, 'get', '/api/v1/admin/stats')).status, 404);
+    const st = (await api(ADMIN, 'get', '/api/v1/admin/stats')).body;
+    assert.ok(st.users.total >= 3 && st.users.last7Days >= 1 && st.circles.total >= 1 && typeof st.circles.byStatus === 'object' && st.activeMembers >= 1);
     const q = (await api(ADMIN, 'get', '/api/v1/admin/reviews')).body;
     const item = q.find((x: any) => x.id === gid);
     assert.equal(item.notes.length, 2);
@@ -300,6 +303,40 @@ describe('Sign in with Google + mobile registration', () => {
     const v = await http.post('/api/v1/auth/otp/verify').set('X-Forwarded-For', ip).send({ phone: '+966500000331', code: req.body.devCode, linkToken: other2 });
     assert.equal(v.body.error.code, 'GOOGLE_ALREADY_LINKED');
     assert.equal((await http.post('/api/v1/auth/otp/verify').send({ phone: '+966500000331', code: '000000', linkToken: 'garbage.token.here' })).body.error.code, 'LINK_EXPIRED');
+  });
+
+  test('Google-only mode (no SMS provider): family sign in with Google alone, are invited as accounts, admins by email', async () => {
+    config.phoneSignIn = false; config.platformAdminEmails = ['boss@example.com'];
+    try {
+      assert.equal((await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', '10.1.7.1').send({ phone: '+966500000777' })).body.error.code, 'PHONE_SIGN_IN_DISABLED');
+      assert.equal((await http.get('/api/v1/config/public')).body.phoneSignIn, false);
+      const g = async (sub: string, name: string, email: string, ip: string): Promise<Person> => {
+        const r = await http.post('/api/v1/auth/google').set('X-Forwarded-For', ip).send({ idToken: await googleToken({ sub, name, email }) });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.ok(r.body.accessToken, 'Google alone is the account');
+        return { name, phone: '', ip, token: r.body.accessToken, id: r.body.user.id };
+      };
+      const H = await g('g-fam-1', 'هند', 'Hind@Example.com', '10.1.7.2');
+      const me = (await api(H, 'get', '/api/v1/auth/me')).body;
+      assert.deepEqual([me.phone, me.email, me.fullName, me.googleLinked], [null, 'hind@example.com', 'هند', true]);
+      assert.equal((await g('g-fam-1', 'هند', 'hind@example.com', '10.1.7.2')).id, H.id, 'same Google account, same user');
+      const S = await g('g-fam-2', 'سلمى', 'salma@example.com', '10.1.7.3');
+      const first = await circle(H, { name: 'جمعية العائلة', country: 'SA', contribution: '500', memberCount: 3 });
+      await invite(H, first.id, [S]);
+      const second = await circle(H, { name: 'جمعية رمضان', country: 'SA', contribution: '500', memberCount: 3 });
+      const sug = (await api(H, 'get', `/api/v1/gamiyas/${second.id}/invite-suggestions`)).body;
+      assert.deepEqual(sug.map((x: any) => [x.fullName, x.phone]), [['سلمى', null]]);
+      const r = await api(H, 'post', `/api/v1/gamiyas/${second.id}/invitations/direct`, { userIds: [S.id, '00000000-0000-4000-8000-000000000000'] });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      assert.deepEqual(r.body.notified.map((n: any) => n.fullName), ['سلمى'], 'only people H shares a circle with');
+      const mine = (await api(S, 'get', '/api/v1/me/invitations')).body;
+      assert.deepEqual(mine.map((x: any) => x.name), ['جمعية رمضان']);
+      assert.equal((await api(H, 'get', `/api/v1/gamiyas/${second.id}/invite-suggestions`)).body[0].invited, 'PENDING');
+      const B = await g('g-boss', 'المشرف', 'boss@example.com', '10.1.7.4');
+      assert.equal((await api(B, 'get', '/api/v1/auth/me')).body.platformRole, 'PLATFORM_ADMIN');
+      const linked = await http.post('/api/v1/auth/google').send({ idToken: await googleToken({ sub: 'g-123', email: 'reem@example.com' }) });
+      assert.ok(linked.body.accessToken, 'accounts linked earlier still sign in');
+    } finally { config.phoneSignIn = true; config.platformAdminEmails = []; }
   });
 
   test('Egyptian and UAE mobiles are accepted for registration', async () => {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { syncStatusBar } from '../platform.ts';
 
 /** Wathiq shell preferences: skin and language live on <html> and are broadcast with wq:* events. */
-export type Skin = 'auto' | 'light' | 'dark' | 'bright';
+export type Skin = 'auto' | 'light' | 'dark' | 'comfort' | 'bright';
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } };
 

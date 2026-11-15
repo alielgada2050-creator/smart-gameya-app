@@ -8,6 +8,7 @@ import { Icon } from '../shell/icons.tsx';
 export function Admin() {
   const { t, lang } = useT();
   const q = useLoad(() => api<any[]>('GET', '/admin/reviews'));
+  const st = useLoad(() => api<any>('GET', '/admin/stats'));
   const [note, setNote] = useState<Record<string, string>>({});
   const [error, setError] = useState<unknown>(null);
   const [msg, setMsg] = useState('');
@@ -23,6 +24,19 @@ export function Admin() {
   return (
     <div className="stack">
       <h1>{t.admin}</h1>
+      {st.data && (
+        <section className="panel stack-sm" aria-label={t.stats.title} data-testid="platform-stats">
+          <h2>{t.stats.title}</h2>
+          <dl className="kv">
+            <dt>{t.stats.users}</dt><dd>{st.data.users.total}</dd>
+            <dt>{t.stats.week}</dt><dd>{st.data.users.last7Days}</dd>
+            <dt>{t.stats.month}</dt><dd>{st.data.users.last30Days}</dd>
+            <dt>{t.stats.circles}</dt><dd>{st.data.circles.total}{Object.entries(st.data.circles.byStatus).map(([k, n]) => ` · ${t.status[k] ?? k} ${n}`).join('')}</dd>
+            <dt>{t.stats.members}</dt><dd>{st.data.activeMembers}</dd>
+            <dt>{t.stats.pending}</dt><dd>{st.data.pendingReviews}</dd>
+          </dl>
+        </section>
+      )}
       <h2>{t.adminTitle}</h2>
       {msg && <p className="notice ok">{msg}</p>}
       <ErrorNote error={error ?? q.error} />

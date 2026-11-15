@@ -127,7 +127,7 @@ export function Shell({ nav, current, signedIn, userName, skin, setSkin, toggleL
                 <button className="icon-btn" aria-label={`${t.appearance}: ${t.skins[skin]}`} aria-haspopup="menu" aria-expanded={open === 'skin'} onClick={() => setOpen(open === 'skin' ? '' : 'skin')}><Icon name="skin" /></button>
                 {open === 'skin' && (
                   <div className="menu" role="menu" aria-label={t.appearance}>
-                    {(['auto', 'light', 'dark', 'bright'] as Skin[]).map((s) => (
+                    {(['auto', 'light', 'dark', 'comfort', 'bright'] as Skin[]).map((s) => (
                       <button key={s} role="menuitemradio" aria-checked={skin === s} onClick={() => { setSkin(s); close(); }}>{t.skins[s]}</button>
                     ))}
                   </div>

@@ -17,7 +17,7 @@ export function Account() {
         {me.data ? (
           <dl className="panel kv">
             <dt>{t.fullName}</dt><dd>{me.data.fullName}</dd>
-            <dt>{t.phone}</dt><dd className="ltr">{me.data.phone}</dd>
+            {me.data.phone && <><dt>{t.phone}</dt><dd className="ltr">{me.data.phone}</dd></>}
             <dt>Google</dt><dd>{me.data.googleLinked ? `${t.googleLinked}${me.data.email ? ` (${me.data.email})` : ''}` : t.googleNotLinked}</dd>
           </dl>
         ) : <Loading />}

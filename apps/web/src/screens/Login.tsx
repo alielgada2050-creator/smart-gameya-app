@@ -30,6 +30,7 @@ function GoogleButton({ clientId, onCredential }: { clientId: string; onCredenti
 export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) => void; onIntro?: () => void }) {
   const { t } = useT();
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  const [phoneSignIn, setPhoneSignIn] = useState<boolean | null>(null);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [phoneInput, setPhoneInput] = useState('');
   const [phone, setPhone] = useState<string | null>(null);
@@ -41,7 +42,10 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
   const [busy, setBusy] = useState(false);
 
   // Google blocks sign-in inside embedded app web views, so the native apps use mobile OTP only.
-  useEffect(() => { if (!isNative) api<any>('GET', '/config/public').then((c) => setGoogleClientId(c.googleClientId)).catch(() => {}); }, []);
+  useEffect(() => {
+    api<any>('GET', '/config/public').then((c) => { if (!isNative) setGoogleClientId(c.googleClientId); setPhoneSignIn(c.phoneSignIn !== false); })
+      .catch(() => setPhoneSignIn(true));
+  }, []);
 
   async function onGoogle(idToken: string) {
     setError(null);
@@ -78,7 +82,15 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
 
       {linkToken && <p className="notice" role="status">{t.googleNeedsPhone}</p>}
 
-      {!phone ? (
+      {phoneSignIn === false ? (
+        <section className="panel stack" data-testid="google-only">
+          <h2>{t.gsign.title}</h2>
+          <p className="muted small">{t.gsign.body}</p>
+          <ErrorNote error={error} />
+          {googleClientId ? <GoogleButton clientId={googleClientId} onCredential={onGoogle} />
+            : <p className="notice" role="status">{isNative ? t.gsign.native : t.gsign.notConfigured}</p>}
+        </section>
+      ) : !phone ? (
         <form className="panel stack" onSubmit={send} noValidate>
           <label>{t.phone}
             <input type="tel" className="ltr" inputMode="tel" autoComplete="tel" placeholder={t.phoneHint} value={phoneInput} onChange={(e) => setPhoneInput(e.target.value)} required aria-invalid={!!localError} />

@@ -68,6 +68,22 @@ export class NotesService {
     if (!r || !['PLATFORM_ADMIN', 'COMPLIANCE_OFFICER'].includes(r.platform_role)) throw notFound();
   }
 
+  /** Platform-wide headcount for reviewers: users, circles by status, memberships and recent sign-ups. Counts only, no personal data. */
+  async stats(userId: string) {
+    await this.requireReviewer(userId);
+    const one = async (sql: string) => (await this.db.query(sql)).rows[0];
+    const users = await one(`SELECT count(*)::int AS total, count(*) FILTER (WHERE created_at > now() - interval '7 days')::int AS last7,
+      count(*) FILTER (WHERE created_at > now() - interval '30 days')::int AS last30 FROM users`);
+    const byStatus = (await this.db.query(`SELECT status::text AS status, count(*)::int AS n FROM gamiyas GROUP BY status ORDER BY 1`)).rows;
+    const members = await one(`SELECT count(*)::int AS memberships, count(DISTINCT user_id)::int AS distinct_members FROM gamiya_members WHERE status IN ('ACTIVE','PENDING_APPROVAL','DEFAULTED','COMPLETED')`);
+    const pending = await one(`SELECT count(*)::int AS n FROM gamiyas WHERE platform_approval='PENDING'`);
+    return {
+      users: { total: users.total, last7Days: users.last7, last30Days: users.last30 },
+      circles: { total: byStatus.reduce((a: number, r: any) => a + r.n, 0), byStatus: Object.fromEntries(byStatus.map((r: any) => [r.status, r.n])) },
+      memberships: members.memberships, activeMembers: members.distinct_members, pendingReviews: pending.n,
+    };
+  }
+
   async pending(userId: string) {
     await this.requireReviewer(userId);
     const circles = (await this.db.query(
@@ -120,6 +136,9 @@ export class NotesController {
 
   @Post('gamiyas/:id/platform-review') @HttpCode(200)
   request(@CurrentUser() u: AuthUser, @Param('id') id: string, @CorrelationId() cid: string) { return this.notes.requestReview(parseId(id), u.id, cid); }
+
+  @Get('admin/stats')
+  stats(@CurrentUser() u: AuthUser) { return this.notes.stats(u.id); }
 
   @Get('admin/reviews')
   pending(@CurrentUser() u: AuthUser) { return this.notes.pending(u.id); }

@@ -91,7 +91,7 @@ export const PRESETS = {
   groq: { baseUrl: 'https://api.groq.com/openai/v1', keyEnv: 'GROQ_API_KEY', defaultModel: 'llama-3.3-70b-versatile' },
   cloudflare: { baseUrl: 'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1', keyEnv: 'CLOUDFLARE_API_TOKEN', defaultModel: '@cf/meta/llama-3.3-70b-instruct-fp8-fast' },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', keyEnv: 'OPENROUTER_API_KEY', defaultModel: 'meta-llama/llama-3.3-70b-instruct:free' },
-  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', keyEnv: 'GEMINI_API_KEY', defaultModel: 'gemini-2.5-flash' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', keyEnv: 'GEMINI_API_KEY', defaultModel: 'gemini-flash-latest' }, // Google's moving alias for the current Flash model; pin one with AI_MODEL_GEMINI
   mistral: { baseUrl: 'https://api.mistral.ai/v1', keyEnv: 'MISTRAL_API_KEY', defaultModel: 'mistral-small-latest' },
   nvidia: { baseUrl: 'https://integrate.api.nvidia.com/v1', keyEnv: 'NVIDIA_NIM_API_KEY', defaultModel: 'meta/llama-3.3-70b-instruct' },
   /** Any OpenAI-compatible endpoint you run or rent: a self-hosted gateway (e.g. a Free Claude Code / OmniRoute proxy on
