@@ -45,3 +45,10 @@ erDiagram
 
 ## الترحيل 007 — الدعوات المباشرة
 - `direct_invitations`: الجمعية، رمز الدعوة، الرقم (E.164)، المستخدم إن كان مسجلاً، المرسل، الحالة PENDING/ACCEPTED/DECLINED، فريد لكل (جمعية، رقم)؛ إعادة الدعوة تجدّدها.
+
+## الترحيل 008 — حسابات Google
+`users.phone_e164` اختياري مع قيد `users_has_identity` (جوال أو Google). `direct_invitations.phone_e164` اختياري مع قيد `direct_invitations_target` وفهرس فريد للدعوة بالحساب.
+
+## الترحيل 009 — تبديل عضو بعضو
+`seat_transfers`: الجمعية، مقعد الخارج `from_member_id`، رمز الرابط `code` (فريد)، السبب، من بدأه، وقت موافقة الخارج `outgoing_consent_at` واعتماد المنظم `organizer_approved_at`، الحالة `OPEN | COMPLETED | CANCELLED`، القادم `to_user_id` ومقعده `to_member_id`، عدد الأقساط المنقولة، وانتهاء الصلاحية (14 يوماً). فهرس فريد يمنع أكثر من طلب مفتوح للمقعد نفسه. عند الإتمام: الخارج `WITHDRAWN` بلا دور، القادم بنفس الدور، والأقساط التي ليس لها `installment_settlements` تنتقل إليه مع استلام دورته.
+

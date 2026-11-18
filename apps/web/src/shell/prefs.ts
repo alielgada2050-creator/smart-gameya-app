@@ -19,7 +19,10 @@ export function useSkin(): [Skin, (s: Skin) => void] {
 }
 
 export function useLang(): ['ar' | 'en', (l: 'ar' | 'en') => void] {
-  const [lang, setLang] = useState<'ar' | 'en'>(() => ((read('wq.lang') ?? read('sg.lang')) === 'en' ? 'en' : 'ar'));
+  const [lang, setLang] = useState<'ar' | 'en'>(() => {
+    const saved = read('wq.lang') ?? read('sg.lang');
+    return saved === 'en' ? 'en' : 'ar'; // Arabic first; the choice is remembered on this device
+  });
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';

@@ -11,6 +11,7 @@ import { Home } from './screens/Home.tsx';
 import { Circles } from './screens/Circles.tsx';
 import { CreateCircle } from './screens/CreateCircle.tsx';
 import { Join } from './screens/Join.tsx';
+import { TakeSeat } from './screens/Replace.tsx';
 import { Circle } from './screens/Circle.tsx';
 import { Account } from './screens/Account.tsx';
 import { Admin } from './screens/Admin.tsx';
@@ -42,6 +43,10 @@ export function App() {
   const [lang, setLang] = useLang();
   const [skin, setSkin] = useSkin();
   const [user, setUser] = useState<SessionUser | null>(() => (hasSession() ? currentUser() : null));
+  useEffect(() => {
+    const on = (e: Event) => setUser((u) => (u ? { ...u, fullName: (e as CustomEvent<string>).detail } : u));
+    addEventListener('sg:name', on); return () => removeEventListener('sg:name', on);
+  }, []);
   const [role, setRole] = useState<string>('NONE');
   const [onboarded, setOnboarded] = useState(wasOnboarded);
   const route = useHash();
@@ -53,7 +58,7 @@ export function App() {
     api<any>('GET', '/auth/me').then((m) => setRole(m.platformRole)).catch(() => {});
   }, [user?.id]);
 
-  const pendingJoin = route.startsWith('/join/') ? route : null;
+  const pendingJoin = route.startsWith('/join/') || route.startsWith('/seat/') ? route : null;
   const nav: NavItem[] = [
     { href: '#/', key: 'home', label: t.home, icon: 'home' },
     { href: '#/circles', key: 'circles', label: t.circles, icon: 'circles' },
@@ -63,7 +68,7 @@ export function App() {
   ];
   const path = route.split('?')[0];
   const query = route.split('?')[1] ?? '';
-  const tab = path === '/' ? 'home' : path.startsWith('/c/') || path === '/circles' || path === '/new' || path.startsWith('/join') ? 'circles'
+  const tab = path === '/' ? 'home' : path.startsWith('/c/') || path === '/circles' || path === '/new' || path.startsWith('/join') || path.startsWith('/seat/') ? 'circles'
     : path === '/advisor' ? 'goals' : path.slice(1).split('/')[0];
 
   let screen;
@@ -74,6 +79,7 @@ export function App() {
   else if (path === '/new') screen = <CreateCircle key={query} query={query} />;
   else if (path.startsWith('/goals')) screen = <Goals tab={path.split('/')[2] ?? 'goals'} />;
   else if (route.startsWith('/join')) screen = <Join code={decodeURIComponent(route.split('/')[2] ?? '')} />;
+  else if (route.startsWith('/seat/')) screen = <TakeSeat code={decodeURIComponent(route.split('/')[2] ?? '')} />;
   else if (route.startsWith('/c/')) screen = <Circle id={route.split('/')[2]} tab={route.split('/')[3] ?? 'overview'} />;
   else if (path === '/advisor') screen = <Goals tab="advisor" />;
   else if (path === '/account') screen = <Account />;

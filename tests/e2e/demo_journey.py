@@ -75,7 +75,7 @@ with sync_playwright() as p:
     pg.get_by_role("button", name="اعرض بيانات التحويل").click()
     expect(pg.get_by_test_id("transfer-ref")).to_have_text(re.compile(r"^JM-"))
     pg.get_by_label("وسيلة التحويل").select_option("IBAN_SA")
-    pg.get_by_label("إيصال التحويل (PDF أو صورة)").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": png()})
+    pg.get_by_test_id("rc-gallery").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": png()})
     pg.get_by_role("button", name="أرسل الإيصال للاعتماد").click()
     expect(pg.get_by_text("أُرسل الإيصال")).to_be_visible()
 

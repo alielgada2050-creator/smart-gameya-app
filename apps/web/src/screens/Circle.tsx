@@ -1,3 +1,5 @@
+import { ReceiptPicker } from '../ReceiptPicker.tsx';
+import { ReplaceMember, SeatTransfers, replaceable } from './Replace.tsx';
 import { useEffect, useState } from 'react';
 import { api, uploadFile, currentUser } from '../api.ts';
 import { ErrorNote, Loading, Pill, Ring, TierChip, useLoad } from '../components.tsx';
@@ -19,6 +21,8 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
   const active = circle.data?.status === 'ACTIVE' || circle.data?.status === 'COMPLETED';
   const schedule = useLoad(() => (active ? api<any[]>('GET', `/gamiyas/${id}/schedule`) : Promise.resolve([])), [id, active]);
   const reloadAll = () => { circle.reload(); lottery.reload(); schedule.reload(); };
+  const [editSaved, setEditSaved] = useState(false);
+  useEffect(() => setEditSaved(false), [id]);
 
   if (circle.error) return <ErrorNote error={circle.error} />;
   if (!circle.data) return <Loading />;
@@ -83,6 +87,7 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
                   <span>{m.payoutPosition ? `${m.payoutPosition}. ` : ''}{m.fullName}{m === me ? ` (${t.you})` : ''}</span>
                   <span className="row-start">
                     <MemberExtras id={id} c={c} m={m} editable={canChange(c, lottery.data)} onChange={reloadAll} />
+                    {c.myRole === 'MANAGER' && m.role !== 'MANAGER' && replaceable(c) && <ReplaceMember id={id} member={m} onDone={reloadAll} />}
                     {c.tier === 'LARGE' && m.role !== 'MANAGER' && c.notes && (() => { const n = c.notes.find((x: any) => x.memberId === m.memberId); return n ? <Pill status={n.status} label={t.notesStatus[n.status]} /> : null; })()}
                     {m.role === 'MANAGER' && <span className="muted small">{t.manager}</span>}
                   </span>
@@ -94,8 +99,11 @@ export function Circle({ id, tab }: { id: string; tab: string }) {
             {c.tier === 'LARGE' && <LargeNotes id={id} circle={c} onChange={reloadAll} />}
             {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <Invite id={id} name={c.name} remaining={c.memberCount - c.joined} />}
             {c.myRole === 'MANAGER' && c.status === 'RECRUITING' && <DirectInvite id={id} name={c.name} remaining={c.memberCount - c.joined} />}
-            {c.myRole === 'MANAGER' && canChange(c, lottery.data) && <EditCircle key={`${c.termsVersion}-${c.name}-${c.memberCount}`} id={id} circle={c} onSaved={reloadAll} />}
+            {editSaved && <p className="notice ok" role="status">{t.edit.saved}</p>}
+            {c.myRole === 'MANAGER' && canChange(c, lottery.data) && <EditCircle key={`${c.termsVersion}-${c.name}-${c.memberCount}`} id={id} circle={c} onSaved={() => { setEditSaved(true); reloadAll(); }} />}
+            <SeatTransfers id={id} circleName={c.name} reloadKey={c} onChange={reloadAll} />
             {c.myRole !== 'MANAGER' && c.myMemberStatus === 'ACTIVE' && canChange(c, lottery.data) && <div className="row-start"><LeaveButton id={id} /></div>}
+            {c.myRole !== 'MANAGER' && me && replaceable(c) && <div className="row-start"><ReplaceMember id={id} member={me} self onDone={reloadAll} /></div>}
             {lottery.data && (
               <PayoutOrder id={id} circle={c} lotteryState={lottery.data} onChange={reloadAll}
                 lotteryPanel={<Lottery id={id} circle={c} state={lottery.data} onChange={reloadAll} />} />
@@ -198,7 +206,7 @@ function LargeNotes({ id, circle, onChange }: { id: string; circle: any; onChang
       {canSubmit && (
         <div className="stack-sm">
           <p className="small">{t.noteExplain(money(circle.potPerCycle, lang, circle.currency))}</p>
-          <label>{t.noteFile}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+          <ReceiptPicker label={t.noteFile} file={file} onChange={setFile} />
           <label>{t.noteRef}<input className="ltr" value={ref} onChange={(e) => setRef(e.target.value)} maxLength={64} /></label>
           <button className="btn btn-primary" disabled={busy || !file || ref.trim().length < 4} onClick={() => run(async () => {
             const up = await uploadFile(id, 'PROMISSORY_NOTE', file!);

@@ -12,7 +12,7 @@ export interface AppConfig {
   payoutKey?: Buffer; // 32 bytes, AES-256-GCM key for payout account values (IBAN, wallet numbers)
   uploadDir?: string; // private directory for receipts and promissory notes (S3-compatible bucket in production)
   tierLimits?: Record<string, TierLimits | undefined>;
-  google?: { clientId: string; jwksUrl: string; issuers: string[] }; // Sign in with Google (ID token)
+  google?: { clientId: string; iosClientId?: string; jwksUrl: string; issuers: string[] }; // Sign in with Google (ID token); the iOS app's client id is a second accepted audience
   platformAdminPhones?: string[]; // bootstrap platform admins (E.164); everyone else is a normal user
   platformAdminEmails?: string[]; // same, by verified Google email (lower-case)
   phoneSignIn: boolean; // mobile-code sign-in; off until an SMS provider delivers codes (dev exposes the code instead)
@@ -54,7 +54,7 @@ export function loadConfig(): AppConfig {
       EGP: limitsFromEnv('EGP', process.env.TIER_LIMITS_EGP),
       AED: limitsFromEnv('AED', process.env.TIER_LIMITS_AED),
     },
-    google: clientId ? { clientId, jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs', issuers: ['accounts.google.com', 'https://accounts.google.com'] } : undefined,
+    google: clientId ? { clientId, iosClientId: process.env.GOOGLE_IOS_CLIENT_ID?.trim() || undefined, jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs', issuers: ['accounts.google.com', 'https://accounts.google.com'] } : undefined,
     platformAdminPhones: (process.env.PLATFORM_ADMIN_PHONES ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     platformAdminEmails: (process.env.PLATFORM_ADMIN_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     // No SMS provider is integrated yet, so outside development the mobile code cannot reach anyone: Google is the sign-in.

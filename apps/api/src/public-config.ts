@@ -10,6 +10,6 @@ export class PublicConfigController {
   @Public() @Get('public')
   get() {
     const enabled = Object.entries(COUNTRIES).filter(([, c]) => !!this.config.tierLimits?.[c.currency]).map(([k]) => k);
-    return { googleClientId: this.config.google?.clientId ?? null, phoneSignIn: this.config.phoneSignIn, circleCountries: enabled, model: 'A' };
+    return { googleClientId: this.config.google?.clientId ?? null, googleIosClientId: this.config.google?.iosClientId ?? null, phoneSignIn: this.config.phoneSignIn, circleCountries: enabled, model: 'A' };
   }
 }

@@ -1,3 +1,4 @@
+import { AR_ERRORS } from './errors.ts';
 import { Hub, Padlock, Plot, Relay, Settle, Vault } from '@lucasmarkes/hairline/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ApiError } from './api.ts';
@@ -43,9 +44,9 @@ export function Pill({ status, label }: { status: string; label: string }) {
 }
 
 export function ErrorNote({ error }: { error: unknown }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   if (!error) return null;
-  const msg = error instanceof ApiError ? error.message : t.error;
+  const msg = error instanceof ApiError ? (lang === 'ar' ? AR_ERRORS[error.code] ?? t.error : error.message) : t.error;
   return <p className="notice error" role="alert">{msg}</p>;
 }
 

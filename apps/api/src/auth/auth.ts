@@ -21,6 +21,7 @@ const RequestSchema = z.object({ phone });
 const RefreshSchema = z.object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
 const VerifySchema = z.object({ phone, code: z.string().regex(/^\d{6}$/), fullName: z.string().trim().min(2).max(100).optional(), linkToken: z.string().max(2000).optional() });
 const GoogleSchema = z.object({ idToken: z.string().min(20).max(4096) });
+const NameSchema = z.object({ fullName: z.string().trim().min(2).max(80).regex(/^[^<>{}]+$/) });
 
 @Injectable()
 export class AuthService {
@@ -44,7 +45,7 @@ export class AuthService {
     this.#jwks ??= createRemoteJWKSet(new URL(g.jwksUrl));
     let claims: any;
     try {
-      claims = (await jwtVerify(idToken, this.#jwks, { issuer: g.issuers, audience: g.clientId, algorithms: ['RS256'] })).payload;
+      claims = (await jwtVerify(idToken, this.#jwks, { issuer: g.issuers, audience: g.iosClientId ? [g.clientId, g.iosClientId] : g.clientId, algorithms: ['RS256'] })).payload;
     } catch {
       throw new AppError(401, 'GOOGLE_TOKEN_INVALID', 'Google sign-in could not be verified');
     }
@@ -86,6 +87,18 @@ export class AuthService {
   async me(userId: string) {
     const u = (await this.db.query(`SELECT id, full_name, phone_e164, email, platform_role, google_sub IS NOT NULL AS google_linked, kyc_status FROM users WHERE id=$1`, [userId])).rows[0];
     return { id: u.id, fullName: u.full_name, phone: u.phone_e164, email: u.email, platformRole: u.platform_role, googleLinked: u.google_linked, kycStatus: u.kyc_status };
+  }
+
+  /** The name the person goes by in every circle. Pledges already signed keep the name typed at the time. */
+  async rename(userId: string, fullName: string, correlationId: string) {
+    const clean = fullName.replace(/\s+/g, ' ').trim();
+    await this.db.tx(async (c) => {
+      const before = (await c.query(`SELECT full_name FROM users WHERE id=$1 FOR UPDATE`, [userId])).rows[0].full_name;
+      if (before === clean) return;
+      await c.query(`UPDATE users SET full_name=$2 WHERE id=$1`, [userId, clean]);
+      await this.audit.log(c, { actorId: userId, action: 'NAME_CHANGED', entity: 'user', entityId: userId, correlationId, details: { from: before, to: clean } });
+    });
+    return this.me(userId);
   }
 
   private hash(code: string) {
@@ -213,6 +226,9 @@ export class AuthController {
 
   @Get('me')
   me(@CurrentUser() u: AuthUser) { return this.auth.me(u.id); }
+
+  @Post('me/name') @HttpCode(200)
+  rename(@CurrentUser() u: AuthUser, @Body() body: unknown, @CorrelationId() cid: string) { return this.auth.rename(u.id, parseBody(NameSchema, body).fullName, cid); }
 
   @Public() @Post('refresh') @HttpCode(200)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

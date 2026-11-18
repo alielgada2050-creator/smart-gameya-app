@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { isNative } from '../platform.ts';
+import { isNative, platform } from '../platform.ts';
 import { api, googleSignIn, normalizePhone, requestCode, verifyCode, type SessionUser } from '../api.ts';
 import { ErrorNote } from '../components.tsx';
 import { useT } from '../i18n.ts';
@@ -27,9 +27,42 @@ function GoogleButton({ clientId, onCredential }: { clientId: string; onCredenti
   return <div ref={ref} style={{ display: 'grid', placeItems: 'center', minHeight: 44 }} />;
 }
 
+/**
+ * Native apps: Google's own sign-in sheet (Credential Manager on Android, Google Sign-In on iOS) via @capgo/capacitor-social-login.
+ * The plugin is loaded only inside the apps, so the website bundle does not carry it.
+ */
+function NativeGoogleButton({ webClientId, iosClientId, onCredential, onError }: { webClientId: string; iosClientId: string | null; onCredential: (idToken: string) => void; onError: (e: unknown) => void }) {
+  const { t } = useT();
+  const [busy, setBusy] = useState(false);
+  const usable = platform === 'android' || (platform === 'ios' && !!iosClientId);
+  async function go() {
+    setBusy(true);
+    try {
+      const { SocialLogin } = await import('@capgo/capacitor-social-login');
+      await SocialLogin.initialize({ google: platform === 'ios'
+        ? { iOSClientId: iosClientId!, iOSServerClientId: webClientId, mode: 'online' }
+        : { webClientId, mode: 'online', skipAuthOnlyAuthorizationAfterSignIn: true } } as any);
+      const r: any = await SocialLogin.login({ provider: 'google', options: platform === 'ios' ? { scopes: ['email', 'profile'] } : {} } as any);
+      const idToken = r?.result?.idToken;
+      if (!idToken) throw new Error('no id token');
+      onCredential(idToken);
+    } catch (e: any) {
+      if (!/cancel/i.test(String(e?.message ?? e))) onError(e);
+    } finally { setBusy(false); }
+  }
+  if (!usable) return <p className="notice" role="status">{t.gsign.native}</p>;
+  return (
+    <button type="button" className="btn btn-secondary btn-block google-native" onClick={go} disabled={busy} data-testid="google-native">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.5c2.1-1.9 3.3-4.7 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.2-2.7l-3.5-2.7c-1 .7-2.2 1-3.7 1-2.8 0-5.3-1.9-6.1-4.5H2.3v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.9 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.3a11 11 0 0 0 0 9.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .5 4.1 1.6l3.1-3.1A11 11 0 0 0 2.3 7.1l3.6 2.8C6.7 7.3 9.2 5.4 12 5.4z"/></svg>
+      <span>{t.gsign.button}</span>
+    </button>
+  );
+}
+
 export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) => void; onIntro?: () => void }) {
   const { t } = useT();
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
+  const [googleIosClientId, setGoogleIosClientId] = useState<string | null>(null);
   const [phoneSignIn, setPhoneSignIn] = useState<boolean | null>(null);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [phoneInput, setPhoneInput] = useState('');
@@ -41,9 +74,9 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
   const [localError, setLocalError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Google blocks sign-in inside embedded app web views, so the native apps use mobile OTP only.
+  // Google blocks its web button inside app web views, so the native apps use Google's native sign-in instead.
   useEffect(() => {
-    api<any>('GET', '/config/public').then((c) => { if (!isNative) setGoogleClientId(c.googleClientId); setPhoneSignIn(c.phoneSignIn !== false); })
+    api<any>('GET', '/config/public').then((c) => { setGoogleClientId(c.googleClientId); setGoogleIosClientId(c.googleIosClientId ?? null); setPhoneSignIn(c.phoneSignIn !== false); })
       .catch(() => setPhoneSignIn(true));
   }, []);
 
@@ -87,8 +120,9 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
           <h2>{t.gsign.title}</h2>
           <p className="muted small">{t.gsign.body}</p>
           <ErrorNote error={error} />
-          {googleClientId ? <GoogleButton clientId={googleClientId} onCredential={onGoogle} />
-            : <p className="notice" role="status">{isNative ? t.gsign.native : t.gsign.notConfigured}</p>}
+          {!googleClientId ? <p className="notice" role="status">{t.gsign.notConfigured}</p>
+            : isNative ? <NativeGoogleButton webClientId={googleClientId} iosClientId={googleIosClientId} onCredential={onGoogle} onError={setError} />
+            : <GoogleButton clientId={googleClientId} onCredential={onGoogle} />}
         </section>
       ) : !phone ? (
         <form className="panel stack" onSubmit={send} noValidate>
@@ -101,7 +135,8 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
           {googleClientId && !linkToken && (
             <>
               <p className="muted small" style={{ textAlign: 'center' }}>{t.orDivider}</p>
-              <GoogleButton clientId={googleClientId} onCredential={onGoogle} />
+              {isNative ? <NativeGoogleButton webClientId={googleClientId} iosClientId={googleIosClientId} onCredential={onGoogle} onError={setError} />
+                : <GoogleButton clientId={googleClientId} onCredential={onGoogle} />}
             </>
           )}
         </form>

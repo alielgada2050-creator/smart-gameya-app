@@ -17,3 +17,4 @@ API_PID=$!
 trap 'kill $API_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 40); do curl -sf localhost:3100/api/v1/health >/dev/null && break; sleep 0.25; done
 cd "$ROOT" && RECORD_API="${RECORD_API:-}" SHOTS_DIR="${SHOTS_DIR:-$ROOT/tests/e2e/screenshots}" BASE_URL=http://localhost:3100 python3 -I tests/e2e/ui_journey.py
+cd "$ROOT" && BASE_URL=http://localhost:3100 python3 -I tests/e2e/members_journey.py

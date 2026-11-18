@@ -64,7 +64,7 @@ export class GamiyasService implements OnModuleInit {
     return { ...rows[0], body };
   }
 
-  private async acceptAgreement(c: Queryable, userId: string, gamiyaId: string, versionId: string, ip: string | null) {
+  async acceptAgreement(c: Queryable, userId: string, gamiyaId: string, versionId: string, ip: string | null) {
     const { rows } = await c.query(`SELECT id FROM agreement_versions WHERE id=$1 AND template_code='JOIN'`, [versionId]);
     if (!rows[0]) throw badRequest('AGREEMENT_REQUIRED', 'a valid JOIN agreement version must be accepted');
     await c.query(

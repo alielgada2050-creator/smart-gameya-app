@@ -144,3 +144,17 @@
 | `POST /gamiyas/:id/invitations/direct {phones[]}` | أرقام E.164 (حتى 30). يرد `{code, notified[], toShare[], skipped[], seatsLeft}`. |
 | `GET /me/invitations` | دعواتي المعلّقة (لحسابي أو لرقمي قبل التسجيل). |
 | `POST /me/invitations/:id/decline` | اعتذار، ويصل المنظم إشعار. |
+
+## تبديل عضو بعضو وتعديل الاسم (0.14)
+| الطريقة | المسار | الوصف |
+|---|---|---|
+| POST | `/auth/me/name` | `{ fullName }` 2–80 حرفاً ← الملف المحدّث |
+| POST | `/gamiyas/:id/members/:memberId/replace` | `{ reason }` — المنظم لأي عضو، أو العضو لمقعده ← قائمة الطلبات المفتوحة. `CANNOT_REPLACE_ORGANIZER`، `TRANSFER_OPEN`، `TURN_RECEIVED`، `LOTTERY_PREPARED`، `PROPOSAL_OPEN` |
+| GET | `/gamiyas/:id/seat-transfers` | الطلبات المفتوحة (كلها للمنظم، ومقعدك للعضو): `{ id, memberId, fullName, reason, mine, outgoingConsent, organizerApproved, ready, code }` — `code` يظهر بعد اكتمال الموافقتين |
+| POST | `/seat-transfers/:id/approve` | الموافقة الناقصة: اعتماد المنظم أو موافقة العضو |
+| POST | `/seat-transfers/:id/cancel` | المنظم أو العضو |
+| GET | `/seat-transfers/code/:code` | للقادم: `{ circle, seat: { replaces, payoutPosition, installments, total, firstDue, overdue, reason }, pledge }` |
+| POST | `/seat-transfers/code/:code/accept` | `{ agreementVersionId, pledge }` ← تفاصيل الجمعية. `ALREADY_MEMBER`، `WAS_MEMBER`، `SEAT_CHANGED`، `PLEDGE_REQUIRED`، `PLEDGE_OUTDATED` |
+
+`/config/public` يعيد أيضاً `googleIosClientId`.
+

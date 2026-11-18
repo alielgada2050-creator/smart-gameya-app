@@ -104,7 +104,7 @@ export function EditCircle({ id, circle, onSaved }: { id: string; circle: any; o
     setError(null); setMsg('');
     try {
       await api('POST', `/gamiyas/${id}/edit`, { ...f, memberCount: Number(f.memberCount), ...(pv?.moneyChanged ? { pledge: sig } : {}) });
-      setMsg(t.edit.saved); setSig(null); onSaved();
+      setSig(null); onSaved(); // the circle screen shows «saved»: this box remounts with the new terms
     } catch (e) { setError(e); }
   }
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });

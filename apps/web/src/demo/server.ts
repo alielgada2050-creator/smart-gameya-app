@@ -295,6 +295,15 @@ on('POST', '/auth/refresh', ({ body }) => {
 });
 on('POST', '/auth/logout', () => ({ loggedOut: true }));
 on('GET', '/auth/me', ({ me }) => { const u = user(me); return { id: u.id, fullName: u.fullName, phone: u.phone, email: null, platformRole: u.platformRole, googleLinked: false, kycStatus: 'UNVERIFIED' }; });
+on('POST', '/auth/me/name', ({ me, body }) => {
+  const name = String(body?.fullName ?? '').replace(/\s+/g, ' ').trim();
+  if (name.length < 2 || name.length > 80 || /[<>{}]/.test(name)) throw new DemoError(400, 'VALIDATION_FAILED', 'enter a name of 2 to 80 characters');
+  user(me).fullName = name;
+  return { id: me, fullName: name, phone: user(me).phone, email: null, platformRole: user(me).platformRole, googleLinked: false, kycStatus: 'UNVERIFIED' };
+});
+// Replacing a member needs three real people agreeing; the demo shows the screens but does not simulate it.
+on('GET', '/gamiyas/:id/seat-transfers', () => []);
+on('POST', '/gamiyas/:id/members/:memberId/replace', () => { throw new DemoError(409, 'DEMO_ONLY', 'replacing a member is available in the real app'); });
 
 // circles
 on('POST', '/gamiyas/preview', ({ body }) => {

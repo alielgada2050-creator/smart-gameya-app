@@ -28,6 +28,12 @@ export function currentUser(): SessionUser | null {
   try { return JSON.parse(store.get(USER_KEY) ?? 'null'); } catch { return null; }
 }
 export const hasSession = () => !!store.get(RT_KEY);
+/** After a rename: keep the cached session user in step and tell the shell. */
+export function rememberName(fullName: string) {
+  const u = currentUser();
+  if (u) store.set(USER_KEY, JSON.stringify({ ...u, fullName }));
+  dispatchEvent(new CustomEvent('sg:name', { detail: fullName }));
+}
 
 function saveTokens(t: { accessToken: string; refreshToken: string }) {
   accessToken = t.accessToken;

@@ -303,7 +303,7 @@ with sync_playwright() as p:
                 if who == "B":
                     shot(pg, "06-pay-to-phone")
                 pg.get_by_label("وسيلة التحويل").select_option("IBAN_SA")
-                pg.get_by_label("إيصال التحويل (PDF أو صورة)").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": receipt_png()})
+                pg.get_by_test_id("rc-gallery").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": receipt_png()})
                 pg.get_by_role("button", name="أرسل الإيصال للاعتماد").click()
                 expect(pg.get_by_text("أُرسل الإيصال")).to_be_visible()
                 progressed = True
@@ -396,7 +396,7 @@ with sync_playwright() as p:
     A.get_by_label("وسيلة التحويل").select_option("IBAN_SA")
     A.get_by_label("المبلغ الذي حوّلته").fill("900")
     A.get_by_label("رقم العملية (اختياري)").fill("SARIE-5521")
-    A.get_by_label("إيصال التحويل (PDF أو صورة)").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": receipt_png()})
+    A.get_by_test_id("rc-gallery").set_input_files({"name": "r.png", "mimeType": "image/png", "buffer": receipt_png()})
     shot(A, "24-transfer-card")
     A.get_by_role("button", name="أرسل الإيصال للاعتماد").click()
     expect(A.get_by_text("أُرسل الإيصال")).to_be_visible()
@@ -413,7 +413,7 @@ with sync_playwright() as p:
     invite_and_join(A, [(B, "خالد"), (C, "نورة")], "الجمعية الكبيرة")
     for pg, ref in ((B, "NFTH-2001"), (C, "NFTH-2002")):
         open_circle(pg, "الجمعية الكبيرة")
-        pg.get_by_label("ملف السند (PDF أو صورة)").set_input_files({"name": "note.pdf", "mimeType": "application/pdf", "buffer": PDF})
+        pg.get_by_test_id("rc-file").set_input_files({"name": "note.pdf", "mimeType": "application/pdf", "buffer": PDF})
         pg.get_by_label("رقم السند المرجعي").fill(ref)
         pg.get_by_role("button", name="ارفع السند").click()
         expect(pg.get_by_text("رُفع السند")).to_be_visible()

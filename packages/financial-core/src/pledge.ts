@@ -12,6 +12,8 @@ export interface PledgeTerms {
   circleName: string; organizerName: string; memberName: string;
   currency: string; contribution: string; memberCount: number; frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
   installments: number; startDate: string; endDate: string; potPerCycle: string; totalCommitment: string; termsVersion: number;
+  /** Set when the signer takes over another member's seat: whom they replace, the turn, and how many overdue payments they take on. */
+  replaces?: { memberName: string; payoutPosition: number | null; overdue: number };
 }
 
 const curAr: Record<string, string> = { SAR: 'ريال', EGP: 'جنيه', AED: 'درهم' };
@@ -35,6 +37,9 @@ export function pledgeText(t: PledgeTerms): string {
     `أنا ${t.memberName}، عضو في جمعية «${t.circleName}» التي ينظّمها ${t.organizerName}:`,
     `عدد الأعضاء ${t.memberCount}، القسط ${t.contribution} ${cur(t)} ${freqAr[t.frequency]}، القبض لكل دورة ${t.potPerCycle} ${cur(t)}.`,
   ];
+  if (t.replaces) {
+    head.push(`أحلّ محلّ ${t.replaces.memberName}${t.replaces.payoutPosition ? ` في الدور رقم ${t.replaces.payoutPosition}` : ''}، وأتحمّل الأقساط التي لم يسددها${t.replaces.overdue ? `، ومنها ${t.replaces.overdue} متأخرة أسددها فوراً` : ''}. ما سدّده قبلي يبقى في سجله، وأي تسوية بيني وبينه شأن خاص بنا لا تتدخل فيه المنصة.`);
+  }
   const clauses = pledgeClauses(t).map((c, i) => `${i + 1}. ${c}`);
   return [...head, ...clauses, 'وأُوقّع على ذلك بكتابة اسمي، وأنا بكامل أهليتي واختياري، والله على ما أقول شهيد.'].join('\n');
 }

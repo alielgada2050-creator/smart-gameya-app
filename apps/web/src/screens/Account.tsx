@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { api } from '../api.ts';
+import { api, rememberName } from '../api.ts';
 import { EmptyState, ErrorNote, Loading, useLoad } from '../components.tsx';
 import { useT } from '../i18n.ts';
 import { readLogos, saveLogos, type OrgLogo } from '../shell/prefs.ts';
@@ -16,7 +16,7 @@ export function Account() {
         <h1>{t.accountTitle}</h1>
         {me.data ? (
           <dl className="panel kv">
-            <dt>{t.fullName}</dt><dd>{me.data.fullName}</dd>
+            <dt>{t.fullName}</dt><dd><EditName name={me.data.fullName} onSaved={me.reload} /></dd>
             {me.data.phone && <><dt>{t.phone}</dt><dd className="ltr">{me.data.phone}</dd></>}
             <dt>Google</dt><dd>{me.data.googleLinked ? `${t.googleLinked}${me.data.email ? ` (${me.data.email})` : ''}` : t.googleNotLinked}</dd>
           </dl>
@@ -28,6 +28,35 @@ export function Account() {
         <BusinessIdentity />
       </div>
     </div>
+  );
+}
+
+/** Your name as it appears to everyone in your circles. Pledges you already signed keep the name you typed then. */
+function EditName({ name, onSaved }: { name: string; onSaved: () => void }) {
+  const { t } = useT();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  async function save(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(null);
+    try {
+      const r = await api<any>('POST', '/auth/me/name', { fullName: value.trim() });
+      rememberName(r.fullName);
+      setEditing(false); onSaved();
+    } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  if (!editing) return <span className="row-start" style={{ gap: 8 }}>{name}<button className="btn btn-ghost btn-xs" onClick={() => { setValue(name); setEditing(true); }}>{t.nameEdit.edit}</button></span>;
+  return (
+    <form className="stack-sm" onSubmit={save} aria-label={t.nameEdit.edit}>
+      <input value={value} onChange={(e) => setValue(e.target.value)} minLength={2} maxLength={80} required autoFocus aria-label={t.fullName} />
+      <p className="muted small">{t.nameEdit.help}</p>
+      <ErrorNote error={error} />
+      <div className="row-start">
+        <button className="btn btn-primary btn-xs" disabled={busy || value.trim().length < 2 || value.trim() === name}>{t.nameEdit.save}</button>
+        <button type="button" className="btn btn-ghost btn-xs" onClick={() => setEditing(false)}>{t.cancel}</button>
+      </div>
+    </form>
   );
 }
 

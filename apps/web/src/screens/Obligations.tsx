@@ -1,3 +1,4 @@
+import { ReceiptPicker } from '../ReceiptPicker.tsx';
 import { useState } from 'react';
 import { api, openFile, uploadFile } from '../api.ts';
 import { EmptyState, ErrorNote, Loading, Pill, useLoad } from '../components.tsx';
@@ -122,7 +123,7 @@ function DeclareForm({ item, onDone }: { item: any; onDone: (msg: string) => voi
         <label>{t.xfer.amountSent}<input className="ltr" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} pattern="\d{1,9}(\.\d{1,2})?" required /></label>
         <label>{t.xfer.transferDate}<input type="date" value={when} onChange={(e) => setWhen(e.target.value)} required /></label>
       </div>
-      <label>{t.receipt}<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+      <ReceiptPicker label={t.receipt} file={file} onChange={setFile} />
       <ErrorNote error={error} />
       <button type="button" className="btn btn-primary" disabled={busy || !method || !file || !/^\d{1,9}(\.\d{1,2})?$/.test(amount.trim()) || !when} onClick={submit}>{t.declare}</button>
     </div>

@@ -122,7 +122,7 @@ export function Shell({ nav, current, signedIn, userName, skin, setSkin, toggleL
                   )}
                 </div>
               )}
-              <button className="icon-btn" onClick={toggleLang} lang={lang === 'ar' ? 'en' : 'ar'} aria-label={t.language} title={t.language}><Icon name="globe" /></button>
+              <button className="icon-btn lang-btn" onClick={toggleLang} lang={lang === 'ar' ? 'en' : 'ar'} aria-label={t.language} title={t.language}><Icon name="globe" /><span className="lang-label" aria-hidden="true">{lang === 'ar' ? 'EN' : 'ع'}</span></button>
               <div ref={skinRef} style={{ position: 'relative' }}>
                 <button className="icon-btn" aria-label={`${t.appearance}: ${t.skins[skin]}`} aria-haspopup="menu" aria-expanded={open === 'skin'} onClick={() => setOpen(open === 'skin' ? '' : 'skin')}><Icon name="skin" /></button>
                 {open === 'skin' && (
