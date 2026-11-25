@@ -29,3 +29,34 @@ jobs:
       - run: cd apps/web && npx tsc --noEmit -p tsconfig.json && npx vite build
       - run: bash scripts/test-api.sh
         env: { DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/sg_api_test' }
+
+  # The image Render (or any Docker host) runs: build it, start it on an empty Postgres in production mode
+  # with files kept in the database, and check it migrates, serves the web app and answers the API.
+  image:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: sg }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t jamiyati:ci .
+      - name: Run the image like Render's free plan
+        run: |
+          docker run -d --name app --network host \
+            -e NODE_ENV=production -e PORT=3000 -e FILE_STORAGE=db \
+            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sg \
+            -e JWT_SECRET=$(openssl rand -base64 32) -e OTP_PEPPER=$(openssl rand -base64 32) \
+            -e LOTTERY_SEED_KEY=$(openssl rand -base64 32) -e PAYOUT_ENCRYPTION_KEY=$(openssl rand -base64 32) \
+            -e GOOGLE_CLIENT_ID=ci-test.apps.googleusercontent.com jamiyati:ci
+          for i in $(seq 1 60); do curl -fsS localhost:3000/api/v1/health && break; sleep 2; done
+          docker logs app | tail -20
+          curl -fsS localhost:3000/api/v1/health
+          curl -fsS localhost:3000/api/v1/config/public | tee /tmp/cfg.json
+          grep -q '"phoneSignIn":false' /tmp/cfg.json
+          curl -fsS localhost:3000/ | grep -q '<div id="root">'
+          curl -fsS localhost:3000/version.json
+          docker exec app node scripts/migrate.mjs | grep -c skip

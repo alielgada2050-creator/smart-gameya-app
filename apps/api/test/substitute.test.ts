@@ -58,6 +58,24 @@ describe('names and replacing members', () => {
     D = await login('دانة', '+966500000804'); E = await login('عيسى', '+966500000805');
   });
 
+  test('receipts kept in Postgres (hosts with a wiped disk) are served like files on disk, and old disk files stay readable', async () => {
+    const gid = await circle(O, [A], { name: 'جمعية الملفات', contribution: '200', memberCount: 3, startDate: '2027-07-01' });
+    const onDisk = await uploadFile(http, A, gid, 'RECEIPT', PNG);
+    config.fileStorage = 'db';
+    try {
+      const inDb = await uploadFile(http, A, gid, 'RECEIPT', PNG);
+      const row = (await db.query(`SELECT length(b.bytes) AS n FROM uploaded_files f JOIN file_blobs b ON b.storage_key = f.storage_key WHERE f.id=$1`, [inDb.fileId])).rows[0];
+      assert.ok(row && row.n > PNG.length, 'stored in file_blobs');
+      for (const id of [inDb.fileId, onDisk.fileId]) {
+        const r = await rawApi(A, 'get', `/api/v1/files/${id}`).buffer(true);
+        assert.equal(r.status, 200);
+        assert.equal(r.headers['content-type'], 'image/png');
+        assert.ok(r.body.subarray(0, 8).equals(PNG.subarray(0, 8)));
+      }
+      assert.equal((await rawApi(B, 'get', `/api/v1/files/${inDb.fileId}`)).status, 404, 'access rules unchanged');
+    } finally { config.fileStorage = undefined; }
+  });
+
   test('a member edits their own name; pledges keep the name typed when signing', async () => {
     assert.equal((await api(D, 'post', '/api/v1/auth/me/name', { fullName: 'x' })).status, 400);
     assert.equal((await api(D, 'post', '/api/v1/auth/me/name', { fullName: '<b>' })).status, 400);

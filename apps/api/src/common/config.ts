@@ -10,7 +10,8 @@ export interface AppConfig {
   isProduction: boolean;
   ai: { chain: ProviderChain; skipped: string[] }; // free-tier provider chain; empty chain → deterministic template
   payoutKey?: Buffer; // 32 bytes, AES-256-GCM key for payout account values (IBAN, wallet numbers)
-  uploadDir?: string; // private directory for receipts and promissory notes (S3-compatible bucket in production)
+  uploadDir?: string; // private directory for receipts and promissory notes when fileStorage is 'disk'
+  fileStorage?: 'disk' | 'db'; // 'db' keeps files in Postgres (hosts whose disk is wiped on restart)
   tierLimits?: Record<string, TierLimits | undefined>;
   google?: { clientId: string; iosClientId?: string; jwksUrl: string; issuers: string[] }; // Sign in with Google (ID token); the iOS app's client id is a second accepted audience
   platformAdminPhones?: string[]; // bootstrap platform admins (E.164); everyone else is a normal user
@@ -28,8 +29,10 @@ function required(name: string): string {
 }
 
 function key32(name: string): Buffer {
-  const k = Buffer.from(required(name), 'hex');
-  if (k.length !== 32) throw new Error(`${name} must be 64 hex chars (32 bytes)`);
+  const v = required(name).trim();
+  // 64 hex characters, or base64 of 32 bytes (what hosting dashboards generate, e.g. Render's generateValue)
+  const k = /^[0-9a-f]{64}$/i.test(v) ? Buffer.from(v, 'hex') : Buffer.from(v, 'base64');
+  if (k.length !== 32) throw new Error(`${name} must be 32 bytes: 64 hex characters or base64`);
   return k;
 }
 
@@ -49,7 +52,11 @@ export function loadConfig(): AppConfig {
     isProduction,
     ai: chainFromEnv(process.env),
     payoutKey: key32('PAYOUT_ENCRYPTION_KEY'),
-    uploadDir: required('UPLOAD_DIR'),
+    ...(() => {
+      const mode = (process.env.FILE_STORAGE ?? (process.env.UPLOAD_DIR ? 'disk' : 'db')).toLowerCase();
+      if (mode !== 'disk' && mode !== 'db') throw new Error('FILE_STORAGE must be disk or db');
+      return { fileStorage: mode as 'disk' | 'db', uploadDir: mode === 'disk' ? required('UPLOAD_DIR') : undefined };
+    })(),
     tierLimits: {
       ...TIER_LIMITS,
       EGP: limitsFromEnv('EGP', process.env.TIER_LIMITS_EGP),

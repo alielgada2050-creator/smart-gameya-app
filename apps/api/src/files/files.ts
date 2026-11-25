@@ -36,8 +36,11 @@ export class FilesService {
     if (!member) throw notFound('gamiya');
     const sha256 = createHash('sha256').update(buf).digest('hex');
     const key = `${gamiyaId}/${randomUUID()}`;
-    await mkdir(join(this.config.uploadDir!, gamiyaId), { recursive: true });
-    await writeFile(join(this.config.uploadDir!, key), buf, { mode: 0o600 });
+    if (this.config.fileStorage === 'db') await this.db.query(`INSERT INTO file_blobs (storage_key, bytes) VALUES ($1, $2)`, [key, buf]);
+    else {
+      await mkdir(join(this.config.uploadDir!, gamiyaId), { recursive: true });
+      await writeFile(join(this.config.uploadDir!, key), buf, { mode: 0o600 });
+    }
     const row = (await this.db.query(
       `INSERT INTO uploaded_files (owner_id, gamiya_id, purpose, mime, size_bytes, sha256, storage_key) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
       [userId, gamiyaId, purpose, mime, buf.length, sha256, key])).rows[0];
@@ -75,7 +78,15 @@ export class FilesService {
     const f = await this.canRead(this.db, fileId, userId);
     if (!f) throw notFound('file');
     await this.audit.log(this.db, { actorId: userId, action: 'FILE_VIEWED', entity: 'file', entityId: fileId, correlationId: cid });
-    return { mime: f.mime as string, bytes: await readFile(join(this.config.uploadDir!, f.storage_key)) };
+    return { mime: f.mime as string, bytes: await this.read(f.storage_key) };
+  }
+
+  /** Bytes of a stored file: from Postgres, or from disk; a file saved under one mode stays readable after switching. */
+  private async read(key: string): Promise<Buffer> {
+    const row = (await this.db.query(`SELECT bytes FROM file_blobs WHERE storage_key=$1`, [key])).rows[0];
+    if (row) return row.bytes;
+    if (!this.config.uploadDir) throw notFound('file');
+    return readFile(join(this.config.uploadDir, key));
   }
 }
 

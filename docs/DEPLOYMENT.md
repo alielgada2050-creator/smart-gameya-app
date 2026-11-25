@@ -14,6 +14,33 @@
 | الذكاء الاصطناعي | مفتاح Gemini المجاني من Google AI Studio (اختياري). بدونه يعمل المستشار بقالب ثابت. |
 | النسخة التجريبية | تُبنى فقط بـ `vite build --mode demo` ولا تدخل في الصورة المنشورة (فُحصت الحزمة: لا أسماء ولا رموز تجريبية). |
 
+## النشر المجاني: Render (الخادم) + Neon (قاعدة البيانات)
+
+التكلفة صفر. الحدود: الموقع ينام بعد 15 دقيقة بلا زوار ويستيقظ خلال دقيقة تقريباً عند أول زيارة، وقاعدة Neon المجانية 1 جيجابايت (تكفي آلاف الإيصالات لأن الصور تُصغَّر قبل الرفع). الإيصالات تُحفظ داخل قاعدة البيانات لأن قرص Render المجاني يُمسح عند كل نشر.
+
+### 1) قاعدة البيانات على Neon
+1. ادخل neon.com بحساب Google ← **New project**: الاسم `jamiyati`، الإصدار Postgres 16، المنطقة **AWS Europe Central 1 (Frankfurt)**.
+2. **Connect** ← أطفئ **Connection pooling** ← انسخ الرابط (يبدأ `postgresql://` وينتهي بـ `sslmode=require`). هذا هو `DATABASE_URL`. لا تلصقه في أي محادثة.
+
+### 2) الخادم على Render
+1. ادخل render.com بحساب GitHub نفسه الذي فيه المستودع.
+2. **New ← Blueprint** ← اختر المستودع `smart-gameya-app` ← سيقرأ `render.yaml`.
+3. املأ الحقول التي يطلبها: `DATABASE_URL` من Neon، و`PLATFORM_ADMIN_EMAILS` (بريدك في Gmail). الباقي يمكن تركه فارغاً الآن.
+4. **Apply**. البناء الأول يأخذ بضع دقائق، ثم تُطبَّق ترحيلات قاعدة البيانات تلقائياً ويصبح الرابط `https://jamiyati-XXXX.onrender.com` جاهزاً.
+5. انسخ من Render ← Environment قيم `LOTTERY_SEED_KEY` و`PAYOUT_ENCRYPTION_KEY` إلى مكان آمن (مدير كلمات مرور): فقدانها يعني عدم إمكانية فك أرقام الحسابات المحفوظة.
+
+### 3) تفعيل الدخول بحساب Google
+1. console.cloud.google.com ← مشروع جديد ← **OAuth consent screen** (External) ثم **Publish app** حتى يدخل أي حساب.
+2. **Credentials ← OAuth client ID ← Web application** ← في **Authorized JavaScript origins** أضف رابط Render بالضبط (`https://jamiyati-XXXX.onrender.com`).
+3. انسخ Client ID إلى Render ← Environment ← `GOOGLE_CLIENT_ID` ← **Save** (يعيد النشر تلقائياً).
+
+### 4) اختياري
+- الدخول بالبريد: `SMTP_HOST=smtp.gmail.com` و`SMTP_USER` و`SMTP_PASS` (القسم 2ب).
+- الذكاء الاصطناعي المجاني: `GEMINI_API_KEY` (القسم 3).
+
+### 5) فحص بعد النشر
+افتح `https://jamiyati-XXXX.onrender.com/api/v1/health` (يرد `ok`) ثم الصفحة الرئيسية، وادخل بحساب Google، وأنشئ جمعية تجريبية ثم احذفها أو اتركها.
+
 ## 1) رفع المشروع إلى GitHub
 
 ```bash
