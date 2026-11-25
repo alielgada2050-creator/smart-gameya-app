@@ -269,7 +269,7 @@ export async function upload(gamiyaId: string, me: string, purpose: string, file
 }
 
 // auth
-on('GET', '/config/public', () => ({ googleClientId: null, phoneSignIn: true, circleCountries: ['SA', 'EG', 'AE'], model: 'A', demo: true }));
+on('GET', '/config/public', () => ({ googleClientId: null, phoneSignIn: true, emailSignIn: false, version: __APP_VERSION__, circleCountries: ['SA', 'EG', 'AE'], model: 'A', demo: true }));
 on('GET', '/agreements/current', () => db.agreement);
 on('POST', '/auth/otp/request', ({ body }) => {
   if (!/^\+(9665\d{8}|201[0125]\d{8}|9715\d{8})$/.test(body.phone ?? '')) throw bad('INVALID_PHONE', 'invalid phone');

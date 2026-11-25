@@ -339,6 +339,39 @@ describe('Sign in with Google + mobile registration', () => {
     } finally { config.phoneSignIn = true; config.platformAdminEmails = []; }
   });
 
+  test('email code sign-in: any address, one account per address, the same person when Google later verifies it', async () => {
+    assert.equal((await http.get('/api/v1/config/public')).body.emailSignIn, true);
+    assert.equal((await http.post('/api/v1/auth/email/request').set('X-Forwarded-For', '10.1.8.1').send({ email: 'not-an-email' })).status, 400);
+    const ask = async (email: string, ip: string) => (await http.post('/api/v1/auth/email/request').set('X-Forwarded-For', ip).send({ email })).body;
+    const r1 = await ask('  Mona.K@Hotmail.com ', '10.1.8.2');
+    assert.match(r1.devCode, /^\d{6}$/);
+    const bad = await http.post('/api/v1/auth/email/verify').set('X-Forwarded-For', '10.1.8.2').send({ email: 'mona.k@hotmail.com', code: r1.devCode === '000000' ? '111111' : '000000' });
+    assert.equal(bad.body.error.code, 'OTP_INVALID');
+    const ok = await http.post('/api/v1/auth/email/verify').set('X-Forwarded-For', '10.1.8.2').send({ email: 'MONA.K@hotmail.com', code: r1.devCode, fullName: 'منى  خالد' });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal(ok.body.user.fullName, 'منى خالد');
+    const me = (await http.get('/api/v1/auth/me').set('Authorization', `Bearer ${ok.body.accessToken}`)).body;
+    assert.deepEqual([me.email, me.phone, me.googleLinked], ['mona.k@hotmail.com', null, false]);
+    const again = await http.post('/api/v1/auth/email/verify').set('X-Forwarded-For', '10.1.8.2').send({ email: 'mona.k@hotmail.com', code: r1.devCode });
+    assert.equal(again.body.error.code, 'OTP_INVALID', 'a code works once');
+    const r2 = await ask('mona.k@hotmail.com', '10.1.8.3');
+    const second = await http.post('/api/v1/auth/email/verify').set('X-Forwarded-For', '10.1.8.3').send({ email: 'mona.k@hotmail.com', code: r2.devCode, fullName: 'اسم آخر' });
+    assert.equal(second.body.user.id, ok.body.user.id, 'same address, same account; the name is not overwritten');
+    assert.equal(second.body.user.fullName, 'منى خالد');
+    for (let i = 0; i < 3; i++) await ask('mona.k@hotmail.com', `10.1.8.${10 + i}`);
+    assert.equal((await http.post('/api/v1/auth/email/request').set('X-Forwarded-For', '10.1.8.20').send({ email: 'mona.k@hotmail.com' })).body.error.code, 'RATE_LIMITED');
+    config.phoneSignIn = false;
+    try {
+      const g = await http.post('/api/v1/auth/google').set('X-Forwarded-For', '10.1.8.30').send({ idToken: await googleToken({ sub: 'g-mona', name: 'Mona', email: 'Mona.K@hotmail.com' }) });
+      assert.equal(g.body.user.id, ok.body.user.id, 'Google verified the same address: same person');
+      assert.equal((await http.get('/api/v1/auth/me').set('Authorization', `Bearer ${g.body.accessToken}`)).body.googleLinked, true);
+    } finally { config.phoneSignIn = true; }
+    const before = config.exposeOtpInResponse; config.exposeOtpInResponse = false;
+    try {
+      assert.equal((await http.post('/api/v1/auth/email/request').set('X-Forwarded-For', '10.1.8.40').send({ email: 'x@example.com' })).body.error.code, 'EMAIL_SIGN_IN_DISABLED', 'production without SMTP hides it');
+    } finally { config.exposeOtpInResponse = before; }
+  });
+
   test('Egyptian and UAE mobiles are accepted for registration', async () => {
     for (const phone of ['+201012345678', '+971501234567']) {
       const r = await http.post('/api/v1/auth/otp/request').set('X-Forwarded-For', `10.1.8.${phone.length}`).send({ phone });

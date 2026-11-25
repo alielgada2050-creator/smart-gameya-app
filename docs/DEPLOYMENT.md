@@ -38,6 +38,19 @@ git push -u origin main
 5. في **Authorized JavaScript origins** أضف عنوان موقعك بالضبط، مثل `https://jamiyati.example.com` (و`http://localhost:3000` للتجربة المحلية).
 6. انسخ **Client ID** (ينتهي بـ `.apps.googleusercontent.com`) إلى `GOOGLE_CLIENT_ID`. لا حاجة إلى Client secret: الخادم يتحقق من توقيع الرمز بمفاتيح Google العامة.
 
+## 2ب) الدخول بالبريد الإلكتروني (مجاني عبر Gmail)
+
+يتيح لمن ليس لديه حساب Google (Outlook أو Hotmail أو iCloud…) الدخول برمز من 6 أرقام يصل إلى بريده. من يدخل ببريد ثم بحساب Google بنفس العنوان يبقى حساباً واحداً.
+1. أنشئ حساب Gmail للتطبيق (مثل jamiyati.app@gmail.com) وفعّل فيه التحقق بخطوتين.
+2. من myaccount.google.com/apppasswords أنشئ «كلمة مرور تطبيق» (16 حرفاً).
+3. في `.env`: `SMTP_HOST=smtp.gmail.com`، `SMTP_PORT=465`، `SMTP_USER=` العنوان، `SMTP_PASS=` كلمة مرور التطبيق.
+4. حدود Gmail المجانية نحو 500 رسالة يومياً؛ للأعداد الأكبر استخدم أي خدمة SMTP أخرى بنفس المتغيرات.
+بدون هذه الإعدادات يختفي الدخول بالبريد في الإنتاج ويبقى Google.
+
+## التحديثات
+- الموقع والتطبيق المثبّت من المتصفح: عند نشر نسخة جديدة يظهر شريط «نسخة جديدة من جمعيتي متاحة — حدّث الآن» خلال دقائق (يقرأ `version.json` كل 10 دقائق وعند العودة للتطبيق).
+- تطبيقا أندرويد و iOS: الخادم يعلن رقم إصداره في `/config/public`، وإذا كان أحدث من التطبيق يظهر «نسخة أحدث في المتجر» مع رابط `PLAY_STORE_URL` / `APP_STORE_URL`.
+
 ## 3) مفتاح Gemini المجاني (اختياري)
 
 1. من [Google AI Studio](https://aistudio.google.com/apikey) أنشئ مفتاحاً.

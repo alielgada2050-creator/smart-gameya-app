@@ -9,7 +9,7 @@ import { date, money, useT } from '../i18n.ts';
 import { celebrate } from '../illustrations/Celebration.tsx';
 import { CategoryBadge } from '../categories.tsx';
 import { PledgeSign, type PledgeSignature } from '../Pledge.tsx';
-import { WEB_ORIGIN } from '../platform.ts';
+import { WEB_ORIGIN, isNative, shareLink } from '../platform.ts';
 
 /** True while a seat can still change hands (the server has the final word). */
 export const replaceable = (c: any) => ['RECRUITING', 'LOCKED', 'ACTIVE'].includes(c.status);
@@ -70,6 +70,7 @@ export function SeatTransfers({ id, circleName, reloadKey, onChange }: { id: str
                   <div className="row-start">
                     <code className="ltr small seat-link">{link}</code>
                     <button className="btn btn-secondary btn-xs" onClick={() => { void navigator.clipboard?.writeText(link); setCopied(s.id); }}>{copied === s.id ? t.seat.copied : t.seat.copy}</button>
+                    {(isNative || 'share' in navigator) && <button className="btn btn-primary btn-xs" onClick={() => shareLink(t.seat.title, link, t.seat.shareText(circleName, s.fullName, link))}>{t.shareInvite}</button>}
                     <a className="btn btn-secondary btn-xs" target="_blank" rel="noopener" href={`https://wa.me/?text=${encodeURIComponent(t.seat.shareText(circleName, s.fullName, link))}`}>{t.share.whatsapp}</a>
                   </div>
                 </div>

@@ -12,6 +12,7 @@ import { Circles } from './screens/Circles.tsx';
 import { CreateCircle } from './screens/CreateCircle.tsx';
 import { Join } from './screens/Join.tsx';
 import { TakeSeat } from './screens/Replace.tsx';
+import { UpdateBanner } from './shell/Updates.tsx';
 import { Circle } from './screens/Circle.tsx';
 import { Account } from './screens/Account.tsx';
 import { Admin } from './screens/Admin.tsx';
@@ -88,6 +89,7 @@ export function App() {
 
   return (
     <I18n.Provider value={{ t, lang }}>
+      <UpdateBanner />
       <Shell nav={nav} current={tab} signedIn={!!user} userName={user?.fullName} skin={skin} setSkin={setSkin}
         toggleLang={() => setLang(lang === 'ar' ? 'en' : 'ar')}
         onSignOut={async () => { await logout(); setUser(null); setRole('NONE'); location.hash = '/'; }}>

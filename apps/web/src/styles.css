@@ -711,3 +711,12 @@ input, select, textarea { font-size: var(--fs-base); }
 .lang-label { font-weight: 700; font-size: 14px; color: var(--ink); }
 .seat-link { padding: 6px 8px; border-radius: 8px; background: var(--surface-2); overflow-wrap: anywhere; max-width: 100%; }
 .google-native { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+
+/* ---------- update banner, email sign-in divider ---------- */
+.update-banner { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+  padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.update-banner .btn-primary { background: var(--accent-ink); color: var(--accent); }
+.update-banner .btn-ghost { color: var(--accent-ink); }
+.or-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; }
+.or-divider::before, .or-divider::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+.email-sign-in h3 { margin: 0; }

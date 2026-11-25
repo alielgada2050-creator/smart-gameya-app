@@ -23,5 +23,6 @@ export const AR_ERRORS: Record<string, string> = {
   GOOGLE_EMAIL_UNVERIFIED: 'بريد حساب Google غير موثّق.', GOOGLE_TOKEN_INVALID: 'تعذّر التحقق من الدخول بـ Google، حاول مجدداً.',
   LINK_EXPIRED: 'انتهت خطوة الدخول بـ Google، ابدأ من جديد.', OTP_INVALID: 'الرمز غير صحيح أو منتهي.', REFRESH_EXPIRED: 'انتهت الجلسة، سجّل الدخول من جديد.',
   REFRESH_INVALID: 'انتهت الجلسة، سجّل الدخول من جديد.', REFRESH_REUSED: 'أُنهيت الجلسة احتياطاً، سجّل الدخول من جديد.', GOOGLE_DISABLED: 'الدخول بـ Google غير مفعّل.',
+  EMAIL_SIGN_IN_DISABLED: 'الدخول بالبريد غير مفعّل، ادخل بحساب Google.', EMAIL_NOT_SENT: 'تعذّر إرسال الرمز إلى بريدك، حاول بعد قليل.',
   PHONE_SIGN_IN_DISABLED: 'الدخول برقم الجوال غير متاح، ادخل بحساب Google.', GOOGLE_ALREADY_LINKED: 'حساب Google هذا مرتبط برقم آخر.',
 };

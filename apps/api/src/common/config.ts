@@ -16,6 +16,7 @@ export interface AppConfig {
   platformAdminPhones?: string[]; // bootstrap platform admins (E.164); everyone else is a normal user
   platformAdminEmails?: string[]; // same, by verified Google email (lower-case)
   phoneSignIn: boolean; // mobile-code sign-in; off until an SMS provider delivers codes (dev exposes the code instead)
+  smtp?: { host: string; port: number; user: string; pass: string; from: string }; // email sign-in codes
   remindersEveryMinutes?: number; // 0 = only on demand
   corsOrigins?: string[]; // origins of the Android/iOS apps (and any separate web front end) allowed to call the API
 }
@@ -59,6 +60,10 @@ export function loadConfig(): AppConfig {
     platformAdminEmails: (process.env.PLATFORM_ADMIN_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     // No SMS provider is integrated yet, so outside development the mobile code cannot reach anyone: Google is the sign-in.
     phoneSignIn: expose,
+    smtp: process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS ? {
+      host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT ?? 465), user: process.env.SMTP_USER, pass: process.env.SMTP_PASS,
+      from: process.env.MAIL_FROM || `جمعيتي <${process.env.SMTP_USER}>`,
+    } : undefined,
     remindersEveryMinutes: Number(process.env.REMINDERS_EVERY_MINUTES ?? 60),
     // Capacitor serves the bundled app from https://localhost (Android) and capacitor://localhost (iOS).
     corsOrigins: (process.env.CORS_ORIGINS ?? 'https://localhost,capacitor://localhost').split(',').map((s) => s.trim()).filter(Boolean),

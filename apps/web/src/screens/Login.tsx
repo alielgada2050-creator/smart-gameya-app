@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { isNative, platform } from '../platform.ts';
-import { api, googleSignIn, normalizePhone, requestCode, verifyCode, type SessionUser } from '../api.ts';
+import { api, googleSignIn, normalizePhone, requestCode, requestEmailCode, verifyCode, verifyEmailCode, type SessionUser } from '../api.ts';
 import { ErrorNote } from '../components.tsx';
 import { useT } from '../i18n.ts';
 import { WelcomeSlider } from '../illustrations/WelcomeSlider.tsx';
@@ -59,11 +59,55 @@ function NativeGoogleButton({ webClientId, iosClientId, onCredential, onError }:
   );
 }
 
+/** Sign in with a code sent to any email address (Gmail, Outlook, Hotmail, iCloud…). */
+function EmailSignIn({ onSignedIn, heading = true }: { onSignedIn: (u: SessionUser) => void; heading?: boolean }) {
+  const { t } = useT();
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [devCode, setDevCode] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const clean = email.trim().toLowerCase();
+  async function send(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(null);
+    try { const r = await requestEmailCode(clean); setSent(true); setDevCode(r.devCode ?? null); } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  async function verify(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setError(null);
+    try { onSignedIn(await verifyEmailCode(clean, code.trim(), name.trim())); } catch (err) { setError(err); } finally { setBusy(false); }
+  }
+  return (
+    <section className="stack-sm email-sign-in" data-testid="email-sign-in">
+      {heading && <h3>{t.esign.title}</h3>}
+      {!sent ? (
+        <form className="stack-sm" onSubmit={send}>
+          <label>{t.esign.email}<input className="ltr" type="email" inputMode="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <ErrorNote error={error} />
+          <button className="btn btn-secondary btn-block" disabled={busy || !/^\S+@\S+\.\S+$/.test(clean)}>{t.esign.send}</button>
+        </form>
+      ) : (
+        <form className="stack-sm" onSubmit={verify}>
+          <p className="small">{t.esign.sentTo(clean)}</p>
+          {devCode && <p className="notice small" role="status">{t.esign.dev(devCode)}</p>}
+          <label>{t.esign.code}<input className="ltr otp" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus /></label>
+          <label>{t.esign.name}<input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" /></label>
+          <ErrorNote error={error} />
+          <button className="btn btn-primary btn-block" disabled={busy || code.length !== 6}>{t.esign.verify}</button>
+          <button type="button" className="btn btn-ghost btn-block" onClick={() => { setSent(false); setCode(''); setError(null); }}>{t.esign.change}</button>
+        </form>
+      )}
+    </section>
+  );
+}
+
 export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) => void; onIntro?: () => void }) {
   const { t } = useT();
   const [googleClientId, setGoogleClientId] = useState<string | null>(null);
   const [googleIosClientId, setGoogleIosClientId] = useState<string | null>(null);
   const [phoneSignIn, setPhoneSignIn] = useState<boolean | null>(null);
+  const [emailSignIn, setEmailSignIn] = useState(false);
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [phoneInput, setPhoneInput] = useState('');
   const [phone, setPhone] = useState<string | null>(null);
@@ -76,7 +120,7 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
 
   // Google blocks its web button inside app web views, so the native apps use Google's native sign-in instead.
   useEffect(() => {
-    api<any>('GET', '/config/public').then((c) => { setGoogleClientId(c.googleClientId); setGoogleIosClientId(c.googleIosClientId ?? null); setPhoneSignIn(c.phoneSignIn !== false); })
+    api<any>('GET', '/config/public').then((c) => { setGoogleClientId(c.googleClientId); setGoogleIosClientId(c.googleIosClientId ?? null); setPhoneSignIn(c.phoneSignIn !== false); setEmailSignIn(!!c.emailSignIn); })
       .catch(() => setPhoneSignIn(true));
   }, []);
 
@@ -123,6 +167,7 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
           {!googleClientId ? <p className="notice" role="status">{t.gsign.notConfigured}</p>
             : isNative ? <NativeGoogleButton webClientId={googleClientId} iosClientId={googleIosClientId} onCredential={onGoogle} onError={setError} />
             : <GoogleButton clientId={googleClientId} onCredential={onGoogle} />}
+          {emailSignIn && <><div className="or-divider" role="separator"><span>{t.esign.or}</span></div><EmailSignIn onSignedIn={onSignedIn} /></>}
         </section>
       ) : !phone ? (
         <form className="panel stack" onSubmit={send} noValidate>
@@ -154,6 +199,12 @@ export function Login({ onSignedIn, onIntro }: { onSignedIn: (u: SessionUser) =>
           <button className="btn btn-primary btn-block" disabled={busy || code.length !== 6}>{t.signIn}</button>
           <button type="button" className="btn btn-ghost" onClick={() => { setPhone(null); setCode(''); setDevCode(undefined); }}>{t.changePhone}</button>
         </form>
+      )}
+      {phoneSignIn !== false && emailSignIn && !phone && !linkToken && (
+        <details className="panel">
+          <summary>{t.esign.title}</summary>
+          <EmailSignIn onSignedIn={onSignedIn} heading={false} />
+        </details>
       )}
     </div>
   );

@@ -44,13 +44,13 @@ export async function syncStatusBar() {
 }
 
 /** Share sheet in the apps; clipboard in the browser. Returns true when the native sheet was used. */
-export async function shareLink(title: string, url: string): Promise<boolean> {
+export async function shareLink(title: string, url: string, text?: string): Promise<boolean> {
   if (isNative) {
     const { Share } = await import('@capacitor/share');
-    await Share.share({ title, text: title, url, dialogTitle: title }).catch(() => {});
+    await Share.share({ title, text: text ?? title, url, dialogTitle: title }).catch(() => {});
     return true;
   }
-  if (navigator.share) { await navigator.share({ title, url }).catch(() => {}); return true; }
+  if (navigator.share) { await navigator.share({ title, url, ...(text ? { text } : {}) }).catch(() => {}); return true; }
   return false;
 }
 

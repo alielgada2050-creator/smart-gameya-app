@@ -18,7 +18,8 @@ export function Account() {
           <dl className="panel kv">
             <dt>{t.fullName}</dt><dd><EditName name={me.data.fullName} onSaved={me.reload} /></dd>
             {me.data.phone && <><dt>{t.phone}</dt><dd className="ltr">{me.data.phone}</dd></>}
-            <dt>Google</dt><dd>{me.data.googleLinked ? `${t.googleLinked}${me.data.email ? ` (${me.data.email})` : ''}` : t.googleNotLinked}</dd>
+            {me.data.email && <><dt>{t.esign.emailShort}</dt><dd className="ltr">{me.data.email}</dd></>}
+            <dt>Google</dt><dd>{me.data.googleLinked ? t.googleLinked : t.googleNotLinked}</dd>
           </dl>
         ) : <Loading />}
         <PayoutMethods />
@@ -26,6 +27,7 @@ export function Account() {
       <div className="stack">
         {!isNative && <AppOnDevices />}
         <BusinessIdentity />
+        <p className="muted small" data-testid="app-version">{t.appVersion(__APP_VERSION__)}</p>
       </div>
     </div>
   );

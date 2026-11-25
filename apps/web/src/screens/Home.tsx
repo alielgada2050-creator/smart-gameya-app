@@ -5,6 +5,7 @@ import { CIRCLE_TYPES, CategoryBadge } from '../categories.tsx';
 import { Obligations } from './Obligations.tsx';
 import { GoalProgress } from './Goals.tsx';
 import { MyInvitations } from './DirectInvite.tsx';
+import { InviteFriends } from './InviteFriends.tsx';
 
 const riyadhToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date());
 
@@ -79,6 +80,7 @@ export function Home({ user }: { user: SessionUser }) {
             ))}
           </div>
         </section>
+        <InviteFriends name={user.fullName} />
         <section className="panel stack-sm">
           <div className="row"><h2>{t.home2.myGoals}</h2><a href="#/goals">{t.home2.allGoals}</a></div>
           {!goals.data ? <Loading lines={2} /> : goals.data.length === 0 ? (

@@ -1,5 +1,15 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
+
+const VERSION: string = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+const BUILD = `${VERSION}+${Date.now().toString(36)}`;
+
+/** Writes version.json next to index.html: the open app polls it and offers «تحديث متاح» when a newer build is live. */
+const versionFile = () => ({
+  name: 'sg-version',
+  generateBundle(this: any) { this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: VERSION, build: BUILD }) }); },
+});
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -13,7 +23,8 @@ export default defineConfig(({ mode }) => {
   }
   const demo = mode === 'demo';
   return {
-    plugins: [react()],
+    plugins: [react(), ...(demo || mode === 'native' ? [] : [versionFile()])],
+    define: { __APP_VERSION__: JSON.stringify(VERSION), __BUILD_ID__: JSON.stringify(BUILD) },
     server: { proxy: { '/api': 'http://localhost:3000' } },
     // Demo: a self-contained page (relative paths) whose API runs in the browser; financial-core's hashing via a shim.
     base: demo ? './' : '/',

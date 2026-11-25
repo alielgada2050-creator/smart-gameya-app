@@ -99,7 +99,7 @@ export async function openFile(fileId: string) {
 
 export async function googleSignIn(idToken: string) {
   const r = await api<any>('POST', '/auth/google', { idToken });
-  if (r.accessToken) { saveTokens(r); try { localStorage.setItem(USER_KEY, JSON.stringify(r.user)); } catch { /* ignore */ } }
+  if (r.accessToken) { saveTokens(r); store.set(USER_KEY, JSON.stringify(r.user)); } // store: secure storage inside the apps
   return r as { needsPhone?: boolean; linkToken?: string; suggestedName?: string; user?: SessionUser };
 }
 
@@ -109,6 +109,17 @@ export async function requestCode(phone: string) {
 
 export async function verifyCode(phone: string, code: string, fullName?: string, linkToken?: string) {
   const r = await api<{ accessToken: string; refreshToken: string; user: SessionUser }>('POST', '/auth/otp/verify', { phone, code, fullName: fullName || undefined, linkToken });
+  saveTokens(r);
+  store.set(USER_KEY, JSON.stringify(r.user));
+  return r.user;
+}
+
+export async function requestEmailCode(email: string) {
+  return api<{ sent: boolean; devCode?: string }>('POST', '/auth/email/request', { email });
+}
+
+export async function verifyEmailCode(email: string, code: string, fullName?: string) {
+  const r = await api<{ accessToken: string; refreshToken: string; user: SessionUser }>('POST', '/auth/email/verify', { email, code, fullName: fullName || undefined });
   saveTokens(r);
   store.set(USER_KEY, JSON.stringify(r.user));
   return r.user;

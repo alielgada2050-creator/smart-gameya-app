@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Inject, Injectable, Post } from '@nestjs/common';
+import { Mailer } from './mailer.ts';
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { JwtService } from '@nestjs/jwt';
 import { Throttle } from '@nestjs/throttler';
@@ -12,7 +13,8 @@ import { Public } from '../common/auth.guard.ts';
 
 const OTP_TTL_MIN = 5;
 const OTP_MAX_ATTEMPTS = 5;
-const OTP_MAX_PER_WINDOW = 5; // per phone per 15 minutes
+const OTP_MAX_PER_WINDOW = 5; // per phone or email per 15 minutes
+const EMAIL_TTL_MIN = 10; // email arrives slower than SMS
 const REFRESH_TTL_DAYS = 30;
 
 // Mobile numbers in E.164 for the supported countries: Saudi (+9665…), Egypt (+201[0125]…), UAE (+9715…)
@@ -21,6 +23,9 @@ const RequestSchema = z.object({ phone });
 const RefreshSchema = z.object({ refreshToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
 const VerifySchema = z.object({ phone, code: z.string().regex(/^\d{6}$/), fullName: z.string().trim().min(2).max(100).optional(), linkToken: z.string().max(2000).optional() });
 const GoogleSchema = z.object({ idToken: z.string().min(20).max(4096) });
+const email = z.string().trim().toLowerCase().max(254).email();
+const EmailRequestSchema = z.object({ email });
+const EmailVerifySchema = z.object({ email, code: z.string().regex(/^\d{6}$/), fullName: z.string().trim().min(2).max(80).regex(/^[^<>{}]+$/).optional() });
 const NameSchema = z.object({ fullName: z.string().trim().min(2).max(80).regex(/^[^<>{}]+$/) });
 
 @Injectable()
@@ -30,7 +35,11 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly audit: Audit,
     @Inject(CONFIG) private readonly config: AppConfig,
+    private readonly mailer: Mailer,
   ) {}
+
+  /** Email codes work when SMTP is configured, or in development where the code is shown on screen. */
+  get emailSignIn() { return this.mailer.enabled || this.config.exposeOtpInResponse; }
 
   #jwks: JWTVerifyGetKey | null = null;
 
@@ -60,6 +69,15 @@ export class AuthService {
     }
     if (!this.config.phoneSignIn) {
       return this.db.tx(async (c) => {
+        // Someone who signed in by email code first: Google verified the same address, so it is the same person.
+        const byEmail = typeof claims.email === 'string'
+          ? (await c.query(`SELECT id FROM users WHERE lower(email)=lower($1) AND google_sub IS NULL FOR UPDATE`, [claims.email])).rows[0] : null;
+        if (byEmail) {
+          const u = (await c.query(`UPDATE users SET google_sub=$2 WHERE id=$1 RETURNING id, full_name, kyc_status`, [byEmail.id, claims.sub])).rows[0];
+          await this.audit.log(c, { actorId: u.id, action: 'GOOGLE_LINKED', entity: 'user', entityId: u.id, correlationId });
+          const { _rowId, ...tokens } = await this.issueTokens(c, u.id, null, randomUUID());
+          return { ...tokens, user: { id: u.id, fullName: u.full_name, kycStatus: u.kyc_status } };
+        }
         const u = (await c.query(
           `INSERT INTO users (google_sub, email, full_name) VALUES ($1, $2, $3)
            ON CONFLICT (google_sub) DO UPDATE SET email = COALESCE(users.email, EXCLUDED.email) RETURNING id, full_name, kyc_status, email`,
@@ -87,6 +105,45 @@ export class AuthService {
   async me(userId: string) {
     const u = (await this.db.query(`SELECT id, full_name, phone_e164, email, platform_role, google_sub IS NOT NULL AS google_linked, kyc_status FROM users WHERE id=$1`, [userId])).rows[0];
     return { id: u.id, fullName: u.full_name, phone: u.phone_e164, email: u.email, platformRole: u.platform_role, googleLinked: u.google_linked, kycStatus: u.kyc_status };
+  }
+
+  /** Send a 6-digit code to an email address (any provider). Same limits as mobile codes. */
+  async requestEmailCode(address: string, correlationId: string) {
+    if (!this.emailSignIn) throw new AppError(404, 'EMAIL_SIGN_IN_DISABLED', 'email sign-in is not configured');
+    const { rows } = await this.db.query<{ n: string }>(
+      "SELECT count(*) AS n FROM otp_challenges WHERE email=$1 AND created_at > now() - interval '15 minutes'", [address]);
+    if (Number(rows[0].n) >= OTP_MAX_PER_WINDOW) throw new AppError(429, 'RATE_LIMITED', 'too many codes requested; try later');
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    await this.db.query(`INSERT INTO otp_challenges (email, code_hash, expires_at) VALUES ($1,$2, now() + interval '${EMAIL_TTL_MIN} minutes')`, [address, this.hash(code)]);
+    await this.audit.log(this.db, { actorId: null, action: 'EMAIL_CODE_REQUESTED', entity: 'email', entityId: address.replace(/^(.{2}).*(@.*)$/, '$1***$2'), correlationId });
+    try { await this.mailer.sendCode(address, code, EMAIL_TTL_MIN); }
+    catch { throw new AppError(502, 'EMAIL_NOT_SENT', 'the code could not be emailed; try again shortly'); }
+    return { sent: true, expiresInSeconds: EMAIL_TTL_MIN * 60, ...(this.config.exposeOtpInResponse ? { devCode: code } : {}) };
+  }
+
+  /** Check the emailed code; the verified address becomes the account (or signs into the account that already has it). */
+  async verifyEmailCode(input: z.infer<typeof EmailVerifySchema>, correlationId: string) {
+    if (!this.emailSignIn) throw new AppError(404, 'EMAIL_SIGN_IN_DISABLED', 'email sign-in is not configured');
+    return this.db.tx(async (c) => {
+      const ch = (await c.query(
+        `SELECT id, code_hash, attempts FROM otp_challenges WHERE email=$1 AND consumed_at IS NULL AND expires_at > now()
+         ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, [input.email])).rows[0];
+      if (!ch || ch.attempts >= OTP_MAX_ATTEMPTS) throw new AppError(401, 'OTP_INVALID', 'code invalid or expired');
+      if (!timingSafeEqual(Buffer.from(ch.code_hash, 'hex'), Buffer.from(this.hash(input.code), 'hex'))) {
+        await c.query('UPDATE otp_challenges SET attempts = attempts + 1 WHERE id=$1', [ch.id]);
+        await c.query('COMMIT'); await c.query('BEGIN');
+        throw new AppError(401, 'OTP_INVALID', 'code invalid or expired');
+      }
+      await c.query('UPDATE otp_challenges SET consumed_at = now() WHERE id=$1', [ch.id]);
+      let u = (await c.query(`SELECT id, phone_e164, full_name, kyc_status FROM users WHERE lower(email)=$1`, [input.email])).rows[0];
+      const created = !u;
+      if (!u) u = (await c.query(`INSERT INTO users (email, full_name) VALUES ($1, $2) RETURNING id, phone_e164, full_name, kyc_status`,
+        [input.email, input.fullName?.replace(/\s+/g, ' ') || input.email.split('@')[0].slice(0, 80)])).rows[0];
+      if (this.config.platformAdminEmails?.includes(input.email)) await c.query(`UPDATE users SET platform_role='PLATFORM_ADMIN' WHERE id=$1 AND platform_role='NONE'`, [u.id]);
+      await this.audit.log(c, { actorId: u.id, action: created ? 'USER_REGISTERED_EMAIL' : 'USER_LOGIN_EMAIL', entity: 'user', entityId: u.id, correlationId });
+      const { _rowId, ...tokens } = await this.issueTokens(c, u.id, u.phone_e164, randomUUID());
+      return { ...tokens, user: { id: u.id, fullName: u.full_name, kycStatus: u.kyc_status } };
+    });
   }
 
   /** The name the person goes by in every circle. Pledges already signed keep the name typed at the time. */
@@ -216,6 +273,18 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   verify(@Body() body: unknown, @CorrelationId() cid: string) {
     return this.auth.verifyOtp(parseBody(VerifySchema, body), cid);
+  }
+
+  @Public() @Post('email/request') @HttpCode(202)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  emailRequest(@Body() body: unknown, @CorrelationId() cid: string) {
+    return this.auth.requestEmailCode(parseBody(EmailRequestSchema, body).email, cid);
+  }
+
+  @Public() @Post('email/verify') @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  emailVerify(@Body() body: unknown, @CorrelationId() cid: string) {
+    return this.auth.verifyEmailCode(parseBody(EmailVerifySchema, body), cid);
   }
 
   @Public() @Post('google') @HttpCode(200)

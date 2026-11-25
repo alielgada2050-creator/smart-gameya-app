@@ -9,6 +9,7 @@ import { Audit } from './common/audit.ts';
 import { AuthGuard } from './common/auth.guard.ts';
 import { CorrelationMiddleware, ErrorFilter } from './common/http.ts';
 import { AuthController, AuthService } from './auth/auth.ts';
+import { Mailer } from './auth/mailer.ts';
 import { GamiyasController } from './gamiyas/gamiyas.controller.ts';
 import { GamiyasService } from './gamiyas/gamiyas.service.ts';
 import { InstallmentsController, InstallmentsService } from './installments/installments.ts';
@@ -39,7 +40,7 @@ export class AppModule implements NestModule {
       controllers: [HealthController, PublicConfigController, AuthController, GamiyasController, InstallmentsController, AiController, ChatController, FilesController, NotesController, PayoutsController, OrderingController, MembershipController, SubstituteController, GoalsController, DirectInvitesController],
       providers: [
         { provide: CONFIG, useValue: config },
-        Db, Audit, AuthService, GamiyasService, InstallmentsService, AiService, ChatService, AssistantService, FilesService, NotesService, PayoutsService, OrderingService, MembershipService, SubstituteService, GoalsService, DirectInvitesService,
+        Db, Audit, Mailer, AuthService, GamiyasService, InstallmentsService, AiService, ChatService, AssistantService, FilesService, NotesService, PayoutsService, OrderingService, MembershipService, SubstituteService, GoalsService, DirectInvitesService,
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ErrorFilter },

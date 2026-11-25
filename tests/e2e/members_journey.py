@@ -203,8 +203,41 @@ def main():
         expect(po.locator(".lang-label")).to_have_text("ع")
         po.locator(".lang-btn").click()
 
+        # 7. Sign in with an email code (any provider), from the sign-in page.
+        pe = browser.new_page(locale="ar-SA", viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        pe.add_init_script("localStorage.setItem('sg.onboarded','1')")
+        pe.goto(BASE + "/")
+        pe.locator("summary", has_text="الدخول بالبريد الإلكتروني").click()
+        pe.get_by_label("بريدك الإلكتروني (Gmail أو Outlook أو غيرهما)").fill("Hala.S@Outlook.com")
+        pe.get_by_role("button", name="أرسل رمز الدخول").click()
+        expect(pe.get_by_text("أرسلنا رمزاً من 6 أرقام إلى hala.s@outlook.com", exact=False)).to_be_visible()
+        dev = re.search(r"\d{6}", pe.get_by_text(re.compile("بيئة التطوير: الرمز")).inner_text()).group(0)
+        pe.get_by_label("الرمز المرسل إلى بريدك").fill(dev)
+        pe.get_by_label("اسمك (لأول مرة فقط)").fill("هالة")
+        shot(pe, "25-email-sign-in-phone")
+        pe.get_by_role("button", name="ادخل", exact=True).click()
+        expect(pe.get_by_role("heading", name=re.compile("هالة"))).to_be_visible()
+
+        # 8. Invite friends to the app (share sheet / WhatsApp / copy); version on the account page.
+        card = pe.get_by_test_id("invite-friends")
+        expect(card).to_be_visible()
+        expect(card.get_by_role("link", name="أرسل عبر واتساب")).to_have_attribute("href", re.compile(r"^https://wa\.me/\?text=.*" + re.escape("%D9%87%D8%A7%D9%84%D8%A9")))
+        card.scroll_into_view_if_needed(); shot(pe, "26-invite-friends-phone")
+        pe.goto(BASE + "/#/account")
+        expect(pe.get_by_test_id("app-version")).to_have_text(re.compile(r"^الإصدار \d+\.\d+\.\d+$"))
+        expect(pe.locator("dl.kv")).to_contain_text("hala.s@outlook.com")
+
+        # 9. A newer build goes live while the app is open: the update banner offers a reload.
+        pe.route("**/version.json", lambda r: r.fulfill(status=200, content_type="application/json", body='{"version":"9.9.9","build":"9.9.9+new"}'))
+        pe.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+        banner = pe.get_by_test_id("update-banner")
+        expect(banner).to_contain_text("نسخة جديدة من جمعيتي متاحة.")
+        shot(pe, "27-update-banner-phone")
+        banner.get_by_role("button", name="لاحقاً").click()
+        expect(banner).to_have_count(0)
+
         browser.close()
-    print("Members journey passed: member asks to be replaced → Arabic error on a duplicate → organizer approves → one-time link + WhatsApp → newcomer sees turn, payments and private-settlement note, signs, takes the same turn; receipt picker on a phone (camera opens the phone camera, 6+ MB photo reduced under 5 MB with preview, PDF, reduced photo uploaded and sent for approval), live camera capture on a computer; edit name; language button label")
+    print("Members journey passed: member asks to be replaced → Arabic error on a duplicate → organizer approves → one-time link + WhatsApp → newcomer sees turn, payments and private-settlement note, signs, takes the same turn; receipt picker on a phone (camera opens the phone camera, 6+ MB photo reduced under 5 MB with preview, PDF, reduced photo uploaded and sent for approval), live camera capture on a computer; edit name; language button label; email-code sign-in (Outlook address); invite friends card (share/WhatsApp/copy); app version; update banner when a newer build is live")
 
 
 if __name__ == "__main__":

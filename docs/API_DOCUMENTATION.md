@@ -158,3 +158,11 @@
 
 `/config/public` يعيد أيضاً `googleIosClientId`.
 
+## الدخول بالبريد والإصدار (0.15)
+| الطريقة | المسار | الوصف |
+|---|---|---|
+| POST | `/auth/email/request` | `{ email }` ← `{ sent, expiresInSeconds }`. `EMAIL_SIGN_IN_DISABLED` بلا SMTP في الإنتاج، `RATE_LIMITED`، `EMAIL_NOT_SENT` |
+| POST | `/auth/email/verify` | `{ email, code, fullName? }` ← جلسة. `OTP_INVALID` |
+| GET | `/config/public` | يضيف `emailSignIn` و`version` و`stores { android, ios }` |
+| GET | `/version.json` (ملف ثابت) | `{ version, build }` للموقع لاكتشاف نسخة أحدث |
+
